@@ -93,7 +93,7 @@ export const commentConfig = {
 		repo: "QWQwul/fuwari", // 仓库 owner/name
 		repoId: "R_kgDOQrqm2Q", // 仓库 node_id（GitHub API 中 repo 的 node_id）
 		category: "Announcements", // Discussions 分类名
-		categoryId: "", // 分类 id，安装 giscus App 后从 https://giscus.app 获取
+		categoryId: "DIC_kwDOQrqm2c4DK5Z8", // 分类 id，安装 giscus App 后从 https://giscus.app 获取
 		mapping: "pathname", // 文章与 Discussion 的映射方式
 		strict: false, // 严格匹配标题
 		reactionsEnabled: "1", // 显示表情回应
