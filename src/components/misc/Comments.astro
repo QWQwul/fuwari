@@ -1,0 +1,64 @@
+---
+import { commentConfig } from "../../config";
+
+const giscus = commentConfig.giscus;
+const enabled = commentConfig.enable && commentConfig.system === "giscus";
+const configured = enabled && Boolean(giscus.repo && giscus.repoId && giscus.categoryId);
+const showHint = enabled && !configured && import.meta.env.DEV;
+---
+
+{
+	configured && (
+		<div class="card-base rounded-[var(--radius-large)] px-6 md:px-9 py-6 mb-4 onload-animation">
+			<div class="flex flex-row items-center gap-3 mb-4">
+				<div class="transition h-6 w-6 rounded-md bg-black/5 dark:bg-white/10 text-black/50 dark:text-white/50 flex items-center justify-center">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+						<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z" />
+					</svg>
+				</div>
+				<div class="font-bold text-lg text-black/90 dark:text-white/90">评论</div>
+			</div>
+			<script
+				is:inline
+				src="https://giscus.app/client.js"
+				data-repo={giscus.repo}
+				data-repo-id={giscus.repoId}
+				data-category={giscus.category}
+				data-category-id={giscus.categoryId}
+				data-mapping={giscus.mapping}
+				data-strict={giscus.strict ? "1" : "0"}
+				data-reactions-enabled={giscus.reactionsEnabled}
+				data-emit-metadata="0"
+				data-input-position={giscus.inputPosition}
+				data-theme="preferred_color_scheme"
+				data-lang={giscus.lang}
+				data-loading="lazy"
+				crossorigin="anonymous"
+				async></script>
+			<script is:inline>
+				(() => {
+					const syncTheme = () => {
+						const iframe = document.querySelector("iframe.giscus-frame");
+						const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+						iframe?.contentWindow?.postMessage(
+							{ giscus: { setConfig: { theme } } },
+							"https://giscus.app",
+						);
+					};
+					if (!window.__giscusThemeObserver) {
+						window.__giscusThemeObserver = new MutationObserver(syncTheme);
+						window.__giscusThemeObserver.observe(document.documentElement, {
+							attributes: true,
+							attributeFilter: ["class"],
+						});
+					}
+					const iframe = document.querySelector("iframe.giscus-frame");
+					iframe?.addEventListener("load", syncTheme, { once: true });
+					syncTheme();
+				})();
+			</script>
+		</div>
+	)
+}
+
+{showHint && <div class="mb-4 text-sm text-black/50 dark:text-white/50">评论区尚未启用：请在 src/config.ts 的 commentConfig.giscus 中填入 categoryId。</div>}
