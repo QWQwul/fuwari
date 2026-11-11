@@ -64,7 +64,7 @@ export const navBarConfig: NavBarConfig = {
 export const profileConfig: ProfileConfig = {
 	avatar: "assets/images/demo-avatar.png", // Relative to the /src directory. Relative to the /public directory if it starts with '/'
 	name: "Lorem Ipsum",
-	bio: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+	bio: "这里是一段占位简介，用来展示个人资料卡片的排版。",
 	links: [
 		{
 			name: "Twitter",
@@ -84,6 +84,22 @@ export const profileConfig: ProfileConfig = {
 			url: "https://github.com/saicaca/fuwari",
 		},
 	],
+};
+
+export const commentConfig = {
+	enable: true, // 开启文章评论
+	system: "giscus", // 目前支持 giscus（基于 GitHub Discussions）
+	giscus: {
+		repo: "QWQwul/fuwari", // 仓库 owner/name
+		repoId: "R_kgDOQrqm2Q", // 仓库 node_id（GitHub API 中 repo 的 node_id）
+		category: "Announcements", // Discussions 分类名
+		categoryId: "", // 分类 id，安装 giscus App 后从 https://giscus.app 获取
+		mapping: "pathname", // 文章与 Discussion 的映射方式
+		strict: false, // 严格匹配标题
+		reactionsEnabled: "1", // 显示表情回应
+		inputPosition: "top", // 输入框位置：top / bottom
+		lang: "zh-CN", // 评论界面语言
+	},
 };
 
 export const licenseConfig: LicenseConfig = {
