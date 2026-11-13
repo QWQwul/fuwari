@@ -1,12 +1,52 @@
 <!doctype html>
 <html lang="zh-CN">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
-		<meta name="robots" content="noindex, nofollow" />
-		<title>内容后台</title>
-	</head>
-	<body>
-		<script src="https://unpkg.com/decap-cms@^3.6.0/dist/decap-cms.js"></script>
-	</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=5"
+    />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta
+      name="theme-color"
+      content="#f7f2e6"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0e0d0a"
+      media="(prefers-color-scheme: dark)"
+    />
+    <title>内容后台 · QWQ</title>
+    <link rel="icon" href="/favicon/favicon-light-192.png" />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link rel="stylesheet" href="/admin/brand.css" />
+  </head>
+  <body>
+    <div id="admin-splash" role="status" aria-live="polite">
+      <img src="/favicon/favicon-light-192.png" alt="" />
+      <p>正在加载内容后台…</p>
+    </div>
+    <script src="https://unpkg.com/decap-cms@^3.6.0/dist/decap-cms.js"></script>
+    <script>
+      (function () {
+        var splash = document.getElementById("admin-splash");
+        var ticks = 0;
+        var timer = setInterval(function () {
+          var root = document.getElementById("nc-root");
+          var mounted = !!(root && root.childElementCount > 0);
+          if (mounted) {
+            clearInterval(timer);
+            splash.classList.add("is-hidden");
+            setTimeout(function () {
+              splash.remove();
+            }, 400);
+          } else if (++ticks > 160) {
+            clearInterval(timer);
+            splash.innerHTML = "<p>后台加载失败，请检查网络后刷新重试。</p>";
+          }
+        }, 200);
+      })();
+    </script>
+  </body>
 </html>

@@ -13,7 +13,7 @@ backend:
 
 site_url: https://ai.157478.xyz
 display_url: https://ai.157478.xyz
-logo_url: https://ai.157478.xyz/favicon/favicon.ico
+logo_url: https://ai.157478.xyz/favicon/favicon-light-192.png
 
 media_folder: public/uploads
 public_folder: /uploads
