@@ -4,6 +4,7 @@ backend:
   branch: main
   base_url: https://ai.157478.xyz
   auth_endpoint: auth
+  api_root: https://ai.157478.xyz/gw
   commit_messages:
     create: "docs: 新增文章「{{slug}}」"
     update: "docs: 更新文章「{{slug}}」"
