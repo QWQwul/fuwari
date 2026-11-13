@@ -185,10 +185,26 @@ const bannerOffset =
 				host.__giscusObserver.observe(host);
 			};
 
+			const readCfg = () => {
+				const host = document.querySelector("[data-giscus-config]");
+				if (!host) return null;
+				try {
+					return JSON.parse(host.getAttribute("data-giscus-config") || "{}");
+				} catch {
+					return null;
+				}
+			};
+
+			const currentTheme = (cfg) => {
+				if (!cfg) return "preferred_color_scheme";
+				const dark = document.documentElement.classList.contains("dark");
+				return (dark ? cfg["theme-dark"] : cfg["theme-light"]) || cfg.theme || "preferred_color_scheme";
+			};
+
 			const syncTheme = () => {
 				const iframe = document.querySelector("iframe.giscus-frame");
 				if (!iframe) return;
-				const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+				const theme = currentTheme(readCfg());
 				iframe.contentWindow?.postMessage({ giscus: { setConfig: { theme } } }, "https://giscus.app");
 			};
 
@@ -217,7 +233,9 @@ const bannerOffset =
 				s.async = true;
 				s.crossOrigin = "anonymous";
 				s.setAttribute("data-giscus", "1");
+				cfg.theme = currentTheme(cfg);
 				for (const [k, v] of Object.entries(cfg)) {
+					if (k === "theme-light" || k === "theme-dark") continue;
 					s.setAttribute("data-" + k, v);
 				}
 				host.appendChild(s);

@@ -1,0 +1,42 @@
+/* giscus theme: fuwari light (hue 60) */
+:root {
+  --color-canvas-default: #ffffff;
+  --color-canvas-subtle: oklch(0.97 0.008 60);
+  --color-canvas-inset: oklch(0.96 0.01 60);
+  --color-fg-default: oklch(0.25 0.02 60);
+  --color-fg-muted: oklch(0.45 0.02 60);
+  --color-fg-subtle: oklch(0.62 0.02 60);
+  --color-border-default: rgba(0, 0, 0, 0.1);
+  --color-border-muted: rgba(0, 0, 0, 0.06);
+  --color-neutral-muted: rgba(0, 0, 0, 0.06);
+  --color-accent-fg: oklch(0.62 0.13 60);
+  --color-accent-emphasis: oklch(0.70 0.14 60);
+  --color-accent-subtle: oklch(0.95 0.03 60);
+  --color-btn-bg: oklch(0.96 0.02 60);
+  --color-btn-text: oklch(0.35 0.03 60);
+  --color-btn-border: rgba(0, 0, 0, 0.1);
+  --color-btn-hover-bg: oklch(0.92 0.04 60);
+  --color-btn-active-bg: oklch(0.88 0.06 60);
+  --color-btn-primary-bg: oklch(0.70 0.14 60);
+  --color-btn-primary-text: #ffffff;
+  --color-btn-primary-hover-bg: oklch(0.66 0.14 60);
+  --color-scale-gray-7: #f6f8fa;
+  --color-success-fg: oklch(0.62 0.12 150);
+  --color-danger-fg: oklch(0.60 0.18 25);
+}
+
+body {
+  background-color: var(--color-canvas-default) !important;
+  color: var(--color-fg-default);
+  font-family: Roboto, "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.gsc-comment-box, .gsc-comment, .gsc-reply-box {
+  border-color: var(--color-border-default) !important;
+  background-color: transparent;
+}
+
+.gsc-comment-box-textarea, .gsc-comment-box-tabs {
+  background-color: var(--color-canvas-subtle) !important;
+  border-color: var(--color-border-default) !important;
+}
