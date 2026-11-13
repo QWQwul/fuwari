@@ -1,23 +1,153 @@
 ---
 import type { GetStaticPaths } from "astro";
+import { Icon } from "astro-icon/components";
 import Pagination from "../components/control/Pagination.astro";
-import PostPage from "../components/PostPage.astro";
+import PostCardVertical from "../components/PostCardVertical.astro";
 import { PAGE_SIZE } from "../constants/constants";
 import MainGridLayout from "../layouts/MainGridLayout.astro";
-import { getSortedPosts } from "../utils/content-utils";
+import { getSortedPosts, getTagList } from "../utils/content-utils";
+import { getPostUrlBySlug, url } from "../utils/url-utils";
 
 export const getStaticPaths = (async ({ paginate }) => {
 	const allBlogPosts = await getSortedPosts();
-	return paginate(allBlogPosts, { pageSize: PAGE_SIZE });
+	const ordered = [...allBlogPosts].sort((a, b) => {
+		const pa = a.data.pinned ? 1 : 0;
+		const pb = b.data.pinned ? 1 : 0;
+		if (pa !== pb) return pb - pa;
+		return new Date(b.data.published).getTime() - new Date(a.data.published).getTime();
+	});
+	return paginate(ordered, { pageSize: PAGE_SIZE });
 }) satisfies GetStaticPaths;
-// https://github.com/withastro/astro/issues/6507#issuecomment-1489916992
 
 const { page } = Astro.props;
-
+const tags = await getTagList();
 const len = page.data.length;
+let delay = 0;
 ---
 
 <MainGridLayout>
-    <PostPage page={page}></PostPage>
-    <Pagination class="mx-auto onload-animation" page={page} style={`animation-delay: calc(var(--content-delay) + ${(len)*50}ms)`}></Pagination>
+	<!-- 首页顶部：搜索 + 标签筛选 -->
+	<div class="onload-animation mb-4">
+		<div class="flex items-stretch gap-3">
+			<div class="relative flex-1">
+				<Icon
+					name="material-symbols:search-rounded"
+					class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-black/40 dark:text-white/40"
+				/>
+				<input
+					id="home-search"
+					type="text"
+					inputmode="search"
+					placeholder="搜索标题、摘要、标签和正文..."
+					class="card-base h-12 w-full rounded-xl pr-4 pl-12 text-sm outline-none transition placeholder:text-black/35 dark:placeholder:text-white/35"
+				/>
+			</div>
+			<a
+				href={url("/rss.xml")}
+				aria-label="RSS"
+				class="card-base flex h-12 w-12 items-center justify-center rounded-xl text-[var(--primary)] transition hover:bg-[var(--btn-card-bg-hover)]"
+			>
+				<Icon name="material-symbols:rss-feed-rounded" class="text-xl" />
+			</a>
+		</div>
+
+		<div id="home-tags" class="mt-3 flex flex-wrap gap-2">
+			<button
+				type="button"
+				data-tag-filter=""
+				class="transition rounded-lg px-3.5 py-1.5 text-sm font-medium bg-[var(--primary)] text-white"
+			>
+				全部
+			</button>
+			{tags.map((tag) => (
+				<button
+					type="button"
+					data-tag-filter={tag.name}
+					class="transition rounded-lg bg-black/[0.06] px-3.5 py-1.5 text-sm text-black/70 hover:bg-black/10 dark:bg-white/[0.08] dark:text-white/70 dark:hover:bg-white/[0.13]"
+				>
+					{tag.name}
+				</button>
+			))}
+		</div>
+		<div id="home-empty" class="mt-6 hidden text-center text-sm text-black/40 dark:text-white/40">
+			没有匹配的文章
+		</div>
+	</div>
+
+	<div id="home-posts" class="flex flex-col gap-4">
+		{page.data.map((entry) => (
+			<PostCardVertical
+				entry={entry}
+				title={entry.data.title}
+				tags={entry.data.tags}
+				category={entry.data.category}
+				published={entry.data.published}
+				url={getPostUrlBySlug(entry.slug)}
+				image={entry.data.image}
+				description={entry.data.description}
+				class:list="onload-animation home-post"
+				style={`animation-delay: calc(var(--content-delay) + ${delay++ * 50}ms);`}
+			/>
+		))}
+	</div>
+
+	<Pagination
+		class="mx-auto onload-animation"
+		page={page}
+		style={`animation-delay: calc(var(--content-delay) + ${len * 50}ms)`}
+	/>
+
+	<script is:inline>
+		(() => {
+			const input = document.getElementById("home-search");
+			const pills = Array.from(document.querySelectorAll("[data-tag-filter]"));
+			const cards = Array.from(document.querySelectorAll(".home-post"));
+			const empty = document.getElementById("home-empty");
+			if (!input || !cards.length) return;
+
+			let activeTag = "";
+			const apply = () => {
+				const q = input.value.trim().toLowerCase();
+				let shown = 0;
+				cards.forEach((card) => {
+					const tags = (card.getAttribute("data-tags") || "").split(",");
+					const text = card.getAttribute("data-search") || "";
+					const matchTag = !activeTag || tags.includes(activeTag);
+					const matchText = !q || text.includes(q);
+					const visible = matchTag && matchText;
+					card.style.display = visible ? "" : "none";
+					if (visible) shown++;
+				});
+				if (empty) empty.classList.toggle("hidden", shown > 0);
+			};
+
+			const setActive = (tag) => {
+				activeTag = tag;
+				pills.forEach((p) => {
+					const on = (p.getAttribute("data-tag-filter") || "") === tag;
+					p.classList.toggle("bg-[var(--primary)]", on);
+					p.classList.toggle("text-white", on);
+					p.classList.toggle("bg-black/[0.06]", !on && !tag);
+					p.classList.toggle("dark:bg-white/[0.08]", !on && !tag);
+				});
+				apply();
+			};
+
+			pills.forEach((pill) => {
+				pill.addEventListener("click", () => setActive(pill.getAttribute("data-tag-filter") || ""));
+			});
+			document.addEventListener("click", (e) => {
+				const t = e.target;
+				if (t instanceof Element) {
+					const tag = t.getAttribute("data-tag-link");
+					if (tag) {
+						setActive(tag);
+						window.scrollTo({ top: 0, behavior: "smooth" });
+					}
+				}
+			});
+			input.addEventListener("input", apply);
+			apply();
+		})();
+	</script>
 </MainGridLayout>

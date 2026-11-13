@@ -1,0 +1,85 @@
+---
+import type { CollectionEntry } from "astro:content";
+import path from "node:path";
+import { Icon } from "astro-icon/components";
+import { getDir } from "../utils/url-utils";
+import ImageWrapper from "./misc/ImageWrapper.astro";
+
+interface Props {
+	entry: CollectionEntry<"posts">;
+	title: string;
+	url: string;
+	published: Date;
+	tags: string[];
+	category: string | null;
+	image: string;
+	description: string;
+	style?: string;
+}
+
+const { entry, title, url, published, tags, category, image, description, style } = Astro.props;
+
+const hasCover = image !== undefined && image !== null && image !== "";
+const { remarkPluginFrontmatter } = await entry.render();
+
+const d = new Date(published);
+const dateText = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+const minutes = remarkPluginFrontmatter.minutes ?? 1;
+const pinned = Boolean((entry.data as any).pinned);
+const allTags = [category, ...tags].filter(Boolean) as string[];
+---
+
+<article
+	class="card-base group relative flex w-full flex-col overflow-hidden rounded-[var(--radius-large)]"
+	style={style}
+	data-tags={allTags.join(",")}
+	data-search={`${title} ${description} ${allTags.join(" ")}`.toLowerCase()}
+>
+	<a href={url} aria-label={title} class="block w-full overflow-hidden">
+		{hasCover ? (
+			<div class="relative aspect-[16/9] w-full overflow-hidden">
+				<ImageWrapper
+					src={image}
+					basePath={path.join("content/posts/", getDir(entry.id))}
+					alt={`Cover Image of ${title}`}
+					class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+				/>
+			</div>
+		) : (
+			<div class="h-2 w-full"></div>
+		)}
+	</a>
+
+	<div class="flex flex-1 flex-col px-6 pb-6 pt-5">
+		<a href={url} class="transition mb-2 block text-2xl font-bold leading-snug text-90 hover:text-[var(--primary)]">
+			{title}
+		</a>
+
+		<p class="mb-4 line-clamp-2 text-sm leading-relaxed text-black/55 dark:text-white/55">
+			{description || remarkPluginFrontmatter.excerpt}
+		</p>
+
+		<div class="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-black/45 dark:text-white/45">
+			<time datetime={d.toISOString()}>{dateText}</time>
+			<span class="opacity-50">·</span>
+			<span>{minutes} 分钟阅读</span>
+			{pinned && (
+				<span class="rounded-md bg-[var(--primary)]/15 px-2 py-0.5 text-xs font-medium text-[var(--primary)]">置顶</span>
+			)}
+		</div>
+
+		{allTags.length > 0 && (
+			<div class="mt-4 flex flex-wrap gap-2">
+				{allTags.slice(0, 4).map((tag) => (
+					<button
+						type="button"
+						data-tag-link={tag}
+						class="transition rounded-md bg-black/5 px-2.5 py-1 text-xs text-black/60 hover:bg-black/10 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15"
+					>
+						{tag}
+					</button>
+				))}
+			</div>
+		)}
+	</div>
+</article>
