@@ -136,13 +136,24 @@ details label{margin-top:10px}
 <script>
 (function(){
   var form=document.getElementById("f"),msg=document.getElementById("msg"),btn=document.getElementById("go");
+  var opener=window.opener,handshaken=false,pendingPayload=null;
+  function send(msgText){if(opener&&!opener.closed){try{opener.postMessage(msgText,window.location.origin);}catch(e){}}}
   var codeEl=document.getElementById("code"),pwEl=document.getElementById("pw"),rcEl=document.getElementById("recovery");
   function say(text,ok){msg.textContent=text||"";msg.className="msg"+(ok?" ok":"");}
-  function deliver(token){
-    var payload=JSON.stringify({token:token,provider:"github"});
-    if(window.opener&&!window.opener.closed){
-      try{window.opener.postMessage("authorization:github:success:"+payload,window.location.origin);}catch(e){}
+  window.addEventListener("message",function(ev){
+    if(ev.origin!==window.location.origin)return;
+    if(ev.data==="authorizing:github"){
+      handshaken=true;
+      if(pendingPayload){send(pendingPayload);pendingPayload=null;}
     }
+  });
+  var hsTries=0,hsTimer=setInterval(function(){
+    if(handshaken||hsTries++>40){clearInterval(hsTimer);return;}
+    send("authorizing:github");
+  },250);
+  function deliver(token){
+    var payload="authorization:github:success:"+JSON.stringify({token:token,provider:"github"});
+    if(handshaken){send(payload);}else{pendingPayload=payload;}
     btn.disabled=true;btn.textContent="已登录，正在返回…";
     say("登录成功，正在返回后台…",true);
   }
