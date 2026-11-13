@@ -2,8 +2,8 @@ backend:
   name: github
   repo: QWQwul/fuwari
   branch: main
-  base_url: https://fuwari-cms-auth.zestfulgibbon.workers.dev
-  auth_endpoint: /auth
+  base_url: https://ai.157478.xyz
+  auth_endpoint: auth
   commit_messages:
     create: "docs: 新增文章「{{slug}}」"
     update: "docs: 更新文章「{{slug}}」"
