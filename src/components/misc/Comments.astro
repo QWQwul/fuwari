@@ -18,79 +18,22 @@ const showHint = enabled && !configured && import.meta.env.DEV;
 				</div>
 				<div class="font-bold text-lg text-black/90 dark:text-white/90">评论</div>
 			</div>
-			<script
-				is:inline
-				src="https://giscus.app/client.js"
-				data-repo={giscus.repo}
-				data-repo-id={giscus.repoId}
-				data-category={giscus.category}
-				data-category-id={giscus.categoryId}
-				data-mapping={giscus.mapping}
-				data-strict={giscus.strict ? "1" : "0"}
-				data-reactions-enabled={giscus.reactionsEnabled}
-				data-emit-metadata="0"
-				data-input-position={giscus.inputPosition}
-				data-theme="preferred_color_scheme"
-				data-lang={giscus.lang}
-				data-loading="lazy"
-				crossorigin="anonymous"
-				async></script>
-			<script is:inline>
-				(() => {
-					const SRC = "https://giscus.app/client.js";
-					const mount = () => {
-						const proto = document.querySelector(`script[src="${SRC}"]`);
-						const host = proto?.parentElement;
-						if (!host) return;
-						if (host.querySelector("iframe.giscus-frame")) return;
-						if (host.querySelector("script[data-giscus-mounted]")) return;
-						const clone = document.createElement("script");
-						for (const attr of Array.from(proto.attributes)) {
-							clone.setAttribute(attr.name, attr.value);
-						}
-						clone.setAttribute("data-giscus-mounted", "1");
-						proto.remove();
-						host.appendChild(clone);
-					};
-					let navigated = false;
-					const hook = () => {
-						window.swup?.hooks?.on("visit:start", () => {
-							navigated = true;
-						});
-						window.swup?.hooks?.on("page:view", () => {
-							if (!navigated) return;
-							setTimeout(mount, 60);
-						});
-					};
-					if (window.swup?.hooks) {
-						hook();
-					} else {
-						document.addEventListener("swup:enable", hook);
-					}
-				})();
-			</script>
-			<script is:inline>
-				(() => {
-					const syncTheme = () => {
-						const iframe = document.querySelector("iframe.giscus-frame");
-						const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
-						iframe?.contentWindow?.postMessage(
-							{ giscus: { setConfig: { theme } } },
-							"https://giscus.app",
-						);
-					};
-					if (!window.__giscusThemeObserver) {
-						window.__giscusThemeObserver = new MutationObserver(syncTheme);
-						window.__giscusThemeObserver.observe(document.documentElement, {
-							attributes: true,
-							attributeFilter: ["class"],
-						});
-					}
-					const iframe = document.querySelector("iframe.giscus-frame");
-					iframe?.addEventListener("load", syncTheme, { once: true });
-					syncTheme();
-				})();
-			</script>
+			<div
+				data-giscus-config={JSON.stringify({
+					repo: giscus.repo,
+					"repo-id": giscus.repoId,
+					category: giscus.category,
+					"category-id": giscus.categoryId,
+					mapping: giscus.mapping,
+					strict: giscus.strict ? "1" : "0",
+					"reactions-enabled": giscus.reactionsEnabled,
+					"emit-metadata": "0",
+					"input-position": giscus.inputPosition,
+					theme: "preferred_color_scheme",
+					lang: giscus.lang,
+					loading: "lazy",
+				})}
+			></div>
 		</div>
 	)
 }

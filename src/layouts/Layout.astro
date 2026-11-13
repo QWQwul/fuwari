@@ -156,6 +156,69 @@ const bannerOffset =
 
 		<!-- increase the page height during page transition to prevent the scrolling animation from jumping -->
 		<div id="page-height-extend" class="hidden h-[300vh]"></div>
+	<script is:inline>
+		(() => {
+			const SRC = "https://giscus.app/client.js";
+			let mountedKey = "";
+
+			const syncTheme = () => {
+				const iframe = document.querySelector("iframe.giscus-frame");
+				if (!iframe) return;
+				const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+				iframe.contentWindow?.postMessage({ giscus: { setConfig: { theme } } }, "https://giscus.app");
+			};
+
+			const mount = () => {
+				const host = document.querySelector("[data-giscus-config]");
+				if (!host) {
+					mountedKey = "";
+					return;
+				}
+				const key = location.pathname;
+				if (mountedKey === key && host.querySelector("iframe.giscus-frame")) return;
+				let cfg;
+				try {
+					cfg = JSON.parse(host.getAttribute("data-giscus-config") || "{}");
+				} catch {
+					return;
+				}
+				host.querySelectorAll("iframe.giscus-frame, script[data-giscus]").forEach((el) => el.remove());
+				const s = document.createElement("script");
+				s.src = SRC;
+				s.async = true;
+				s.crossOrigin = "anonymous";
+				s.setAttribute("data-giscus", "1");
+				for (const [k, v] of Object.entries(cfg)) {
+					s.setAttribute("data-" + k, v);
+				}
+				host.appendChild(s);
+				mountedKey = key;
+				setTimeout(syncTheme, 1200);
+			};
+
+			new MutationObserver(syncTheme).observe(document.documentElement, {
+				attributes: true,
+				attributeFilter: ["class"],
+			});
+
+			const hookSwup = () => {
+				window.swup?.hooks?.on("page:view", () => setTimeout(mount, 80));
+			};
+
+			const init = () => {
+				mount();
+				if (window.swup?.hooks) hookSwup();
+				else document.addEventListener("swup:enable", hookSwup, { once: true });
+			};
+
+			if (document.readyState === "loading") {
+				document.addEventListener("DOMContentLoaded", init, { once: true });
+			} else {
+				init();
+			}
+		})();
+	</script>
+
 	</body>
 </html>
 
