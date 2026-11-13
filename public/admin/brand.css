@@ -199,3 +199,45 @@ body,
     animation: none;
   }
 }
+
+/* ---------------- 细节点缀 ---------------- */
+
+#nc-root::before {
+	content: "";
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 3px;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		var(--brand-primary),
+		transparent
+	);
+	z-index: 9998;
+	pointer-events: none;
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: oklch(0.8 0.03 var(--brand-hue) / 0.6);
+	border-radius: 999px;
+	border: 3px solid transparent;
+	background-clip: content-box;
+}
+
+@media (prefers-color-scheme: dark) {
+	::-webkit-scrollbar-thumb {
+		background: oklch(0.42 0.03 var(--brand-hue) / 0.8);
+		background-clip: content-box;
+	}
+}
