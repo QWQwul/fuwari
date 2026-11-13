@@ -37,6 +37,40 @@ const showHint = enabled && !configured && import.meta.env.DEV;
 				async></script>
 			<script is:inline>
 				(() => {
+					const SRC = "https://giscus.app/client.js";
+					const mount = () => {
+						const proto = document.querySelector(`script[src="${SRC}"]`);
+						const host = proto?.parentElement;
+						if (!host) return;
+						if (host.querySelector("iframe.giscus-frame")) return;
+						if (host.querySelector("script[data-giscus-mounted]")) return;
+						const clone = document.createElement("script");
+						for (const attr of Array.from(proto.attributes)) {
+							clone.setAttribute(attr.name, attr.value);
+						}
+						clone.setAttribute("data-giscus-mounted", "1");
+						proto.remove();
+						host.appendChild(clone);
+					};
+					let navigated = false;
+					const hook = () => {
+						window.swup?.hooks?.on("visit:start", () => {
+							navigated = true;
+						});
+						window.swup?.hooks?.on("page:view", () => {
+							if (!navigated) return;
+							setTimeout(mount, 60);
+						});
+					};
+					if (window.swup?.hooks) {
+						hook();
+					} else {
+						document.addEventListener("swup:enable", hook);
+					}
+				})();
+			</script>
+			<script is:inline>
+				(() => {
 					const syncTheme = () => {
 						const iframe = document.querySelector("iframe.giscus-frame");
 						const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
