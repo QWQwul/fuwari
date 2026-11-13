@@ -1,7 +1,7 @@
 ---
-import "@fontsource/roboto/400.css";
-import "@fontsource/roboto/500.css";
-import "@fontsource/roboto/700.css";
+import "@fontsource/roboto/latin-400.css";
+import "@fontsource/roboto/latin-500.css";
+import "@fontsource/roboto/latin-700.css";
 
 import ConfigCarrier from "@components/ConfigCarrier.astro";
 import { profileConfig, siteConfig } from "@/config";
@@ -143,6 +143,9 @@ const bannerOffset =
 		}}></style>  <!-- defines global css variables. This will be applied to <html> <body> and some other elements idk why -->
 
 
+		<link rel="preconnect" href="https://giscus.app" />
+		<link rel="dns-prefetch" href="https://giscus.app" />
+
 		<slot name="head"></slot>
 
 		<link rel="alternate" type="application/rss+xml" title={profileConfig.name} href={`${Astro.site}rss.xml`}/>
@@ -161,6 +164,27 @@ const bannerOffset =
 			const SRC = "https://giscus.app/client.js";
 			let mountedKey = "";
 
+			const isNearViewport = (el) => {
+				const rect = el.getBoundingClientRect();
+				return rect.top < window.innerHeight + 600 && rect.bottom > -600;
+			};
+
+			const observeHost = (host) => {
+				if (host.__giscusObserver) return;
+				host.__giscusObserver = new IntersectionObserver(
+					(entries) => {
+						if (entries.some((e) => e.isIntersecting)) {
+							host.__giscusObserver.disconnect();
+							host.__giscusObserver = null;
+							host.dataset.giscusDeferred = "1";
+							mount();
+						}
+					},
+					{ rootMargin: "600px 0px" },
+				);
+				host.__giscusObserver.observe(host);
+			};
+
 			const syncTheme = () => {
 				const iframe = document.querySelector("iframe.giscus-frame");
 				if (!iframe) return;
@@ -172,6 +196,11 @@ const bannerOffset =
 				const host = document.querySelector("[data-giscus-config]");
 				if (!host) {
 					mountedKey = "";
+					return;
+				}
+				// 评论在进入视口附近前不加载，减少首屏请求
+				if (host.dataset.giscusDeferred !== "1" && !isNearViewport(host)) {
+					observeHost(host);
 					return;
 				}
 				const key = location.pathname;
