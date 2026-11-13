@@ -73,7 +73,7 @@ export async function pbkdf2(password, saltBytes, iterations, length = 32) {
 }
 
 /**
- * 校验形如 `pbkdf2$sha256$210000$<saltB64url>$<hashB64url>` 的口令散列。
+ * 校验形如 `pbkdf2$sha256$<iterations>$<saltB64url>$<hashB64url>` 的口令散列。
  * 缺失或格式错误一律返回 false，不抛异常。
  */
 export async function verifyPassword(stored, password) {
@@ -81,7 +81,7 @@ export async function verifyPassword(stored, password) {
 	const parts = stored.trim().split("$");
 	if (parts.length !== 5 || parts[0] !== "pbkdf2" || parts[1] !== "sha256") return false;
 	const iterations = Number.parseInt(parts[2], 10);
-	if (!Number.isFinite(iterations) || iterations < 10000 || iterations > 1000000) return false;
+	if (!Number.isFinite(iterations) || iterations < 1000 || iterations > 1000000) return false;
 	if (password.length === 0 || password.length > 512) return false;
 	let salt;
 	let expected;

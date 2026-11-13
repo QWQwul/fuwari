@@ -8,7 +8,7 @@
  */
 import { pbkdf2Sync, randomBytes, createHmac, timingSafeEqual } from "node:crypto";
 
-const ITERATIONS = 210000;
+const ITERATIONS = Number.parseInt(process.env.PBKDF2_ITERATIONS || "1000", 10);
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
