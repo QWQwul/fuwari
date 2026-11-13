@@ -1,0 +1,91 @@
+backend:
+  name: github
+  repo: QWQwul/fuwari
+  branch: main
+  base_url: https://fuwari-cms-auth.zestfulgibbon.workers.dev
+  auth_endpoint: /auth
+  commit_messages:
+    create: "docs: 新增文章「{{slug}}」"
+    update: "docs: 更新文章「{{slug}}」"
+    delete: "docs: 删除文章「{{slug}}」"
+    uploadMedia: "chore: 上传图片 {{path}}"
+    deleteMedia: "chore: 删除图片 {{path}}"
+
+site_url: https://ai.157478.xyz
+display_url: https://ai.157478.xyz
+logo_url: https://ai.157478.xyz/favicon/favicon.ico
+
+media_folder: public/uploads
+public_folder: /uploads
+
+collections:
+  - name: posts
+    label: 文章
+    label_singular: 文章
+    folder: src/content/posts
+    create: true
+    delete: true
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    identifier_field: title
+    summary: "{{title}} · {{published}}"
+    sortable_fields: [published, title]
+    fields:
+      - label: 标题
+        name: title
+        widget: string
+      - label: 摘要
+        name: description
+        widget: text
+        required: false
+        hint: 首页卡片上显示的一两句话
+      - label: 发布日期
+        name: published
+        widget: datetime
+        format: YYYY-MM-DD
+        date_format: YYYY-MM-DD
+        time_format: false
+        picker_utc: true
+      - label: 更新日期
+        name: updated
+        widget: datetime
+        required: false
+        format: YYYY-MM-DD
+        date_format: YYYY-MM-DD
+        time_format: false
+      - label: 封面
+        name: image
+        widget: image
+        required: false
+        hint: 上传后的路径是 /uploads/xxx，直接保存即可
+      - label: 标签
+        name: tags
+        widget: list
+        required: false
+        default: []
+      - label: 分类
+        name: category
+        widget: string
+        required: false
+        default: 杂谈
+      - label: 草稿
+        name: draft
+        widget: boolean
+        default: false
+      - label: 置顶
+        name: pinned
+        widget: boolean
+        default: false
+      - label: 正文
+        name: body
+        widget: markdown
+
+  - name: pages
+    label: 关于页
+    files:
+      - label: 关于
+        name: about
+        file: src/content/spec/about.md
+        fields:
+          - label: 正文
+            name: body
+            widget: markdown
