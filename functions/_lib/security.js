@@ -45,15 +45,30 @@ export async function hmacSha256(keyBytes, message) {
 	return new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(message)));
 }
 
+async function sha1(bytes) {
+	return new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
+}
+
+/**
+ * HMAC-SHA1（用 digest 手工拼，避免依赖运行时对 HMAC-SHA1 的支持；
+ * Cloudflare Workers 的 WebCrypto 不保证注册 SHA-1 的 HMAC）。
+ */
 export async function hmacSha1(keyBytes, messageBytes) {
-	const key = await crypto.subtle.importKey(
-		"raw",
-		keyBytes,
-		{ name: "HMAC", hash: "SHA-1" },
-		false,
-		["sign"],
-	);
-	return new Uint8Array(await crypto.subtle.sign("HMAC", key, messageBytes));
+	const blockSize = 64;
+	let key = keyBytes;
+	if (key.length > blockSize) key = await sha1(key);
+	const padded = new Uint8Array(blockSize);
+	padded.set(key);
+
+	const inner = new Uint8Array(blockSize + messageBytes.length);
+	for (let i = 0; i < blockSize; i++) inner[i] = padded[i] ^ 0x36;
+	inner.set(messageBytes, blockSize);
+
+	const innerHash = await sha1(inner);
+	const outer = new Uint8Array(blockSize + innerHash.length);
+	for (let i = 0; i < blockSize; i++) outer[i] = padded[i] ^ 0x5c;
+	outer.set(innerHash, blockSize);
+	return sha1(outer);
 }
 
 export async function pbkdf2(password, saltBytes, iterations, length = 32) {

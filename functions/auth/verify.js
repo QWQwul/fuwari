@@ -22,7 +22,16 @@ const json = (body, status = 200, extra = {}) =>
 		},
 	});
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+	try {
+		return await handleVerify(context);
+	} catch (error) {
+		console.error("auth/verify failed:", error?.stack || error);
+		return json({ ok: false, error: "服务暂时不可用，请稍后重试" }, 500);
+	}
+}
+
+async function handleVerify({ request, env }) {
 	const limitKey = clientKey(request, "auth-verify");
 	if ((await incr(limitKey, WINDOW_SECONDS)) > MAX_ATTEMPTS) {
 		return json({ ok: false, error: "尝试次数过多，请 10 分钟后再试" }, 429);
