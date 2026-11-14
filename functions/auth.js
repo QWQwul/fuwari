@@ -6,6 +6,8 @@
  * 浏览器永远拿不到 GitHub PAT，PAT 只存在于 Pages 环境变量里。
  */
 
+import { issueSession, verifyDevice } from "./_lib/security.js";
+
 const PAGE = `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -181,7 +183,82 @@ details label{margin-top:10px}
 </body>
 </html>`;
 
-export async function onRequestGet() {
+
+const AUTO_PAGE = (token) => `<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>正在进入后台 · QWQ</title>
+<style>
+:root{--bg:#f7f2e6;--fg:#6f6a5c;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#12100c;--fg:#a9a294}}
+html,body{height:100%;margin:0}
+body{display:grid;place-items:center;background:var(--bg);color:var(--fg);font:14px/1.7 "Noto Sans SC",system-ui,sans-serif;text-align:center;padding:24px}
+a{color:inherit;opacity:.6;font-size:12px;margin-top:14px;display:inline-block}
+</style></head>
+<body>
+<div>
+  <p>已识别为本机设备，正在进入后台…</p>
+  <a href="/auth?forget=1">不是本人？退出本机信任</a>
+</div>
+<script>
+(function(){
+  var token = ${JSON.stringify(token)};
+  var opener = window.opener;
+  function send(m){ if(opener && !opener.closed){ try{ opener.postMessage(m, window.location.origin); }catch(e){} } }
+  function done(){
+    send("authorization:github:success:" + JSON.stringify({token: token, provider: "github"}));
+    setTimeout(function(){ try{ window.close(); }catch(e){} }, 600);
+  }
+  var handshake = false;
+  window.addEventListener("message", function(ev){
+    if(ev.origin !== window.location.origin) return;
+    if(ev.data === "authorizing:github"){ handshake = true; done(); }
+  });
+  var tries = 0;
+  var timer = setInterval(function(){
+    if(handshake || tries++ > 40){ clearInterval(timer); return; }
+    send("authorizing:github");
+  }, 250);
+  // 没有 opener（直接访问）时 3 秒后跳回后台
+  if(!opener){ setTimeout(function(){ location.replace("/admin/"); }, 1500); }
+})();
+</script>
+</body></html>`;
+
+export async function onRequestGet({ request, env }) {
+	const url = new URL(request.url);
+	if (url.searchParams.get("forget") === "1") {
+		return new Response(PAGE, {
+			headers: {
+				"content-type": "text/html; charset=utf-8",
+				"cache-control": "no-store",
+				"set-cookie": "fw_dev=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+			},
+		});
+	}
+
+	const ua = request.headers.get("user-agent") || "";
+	const cookieHeader = request.headers.get("cookie") || "";
+	const deviceCookie = cookieHeader
+		.split(";")
+		.map((part) => part.trim())
+		.find((part) => part.startsWith("fw_dev="));
+	if (deviceCookie && env?.SESSION_SECRET) {
+		const device = await verifyDevice(env.SESSION_SECRET, deviceCookie.slice(7), { ua });
+		if (device) {
+			const session = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
+			return new Response(AUTO_PAGE(session.token), {
+				headers: {
+					"content-type": "text/html; charset=utf-8",
+					"cache-control": "no-store",
+					"x-robots-tag": "noindex, nofollow",
+					"referrer-policy": "no-referrer",
+				},
+			});
+		}
+	}
+
 	return new Response(PAGE, {
 		headers: {
 			"content-type": "text/html; charset=utf-8",

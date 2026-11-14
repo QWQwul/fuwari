@@ -5,7 +5,7 @@
  * 失败：{ ok: false, error }，HTTP 401 / 429 / 400。
  */
 
-import { verifyPassword, verifyTotp, issueSession, timingSafeEqual, hmacSha256, b64urlEncode } from "../_lib/security.js";
+import { verifyPassword, verifyTotp, issueSession, issueDevice, timingSafeEqual, hmacSha256, b64urlEncode } from "../_lib/security.js";
 import { incr, clientKey } from "../_lib/ratelimit.js";
 
 const MAX_ATTEMPTS = 20;
@@ -102,7 +102,11 @@ async function handleVerify({ request, env }) {
 		name: env.ADMIN_NAME || "站点管理员",
 		id: (await fingerprint(env.SESSION_SECRET, env.ADMIN_LOGIN || "QWQwul")).slice(0, 12),
 	};
-	return json({ ok: true, token, expiresAt, user });
+	const device = await issueDevice(env.SESSION_SECRET, {
+		ua: request.headers.get("user-agent") || "",
+	});
+	const cookie = `fw_dev=${device.token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=15552000`;
+	return json({ ok: true, token, expiresAt, user }, 200, { "set-cookie": cookie });
 }
 
 export async function onRequest({ request }) {

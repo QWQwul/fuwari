@@ -6,7 +6,7 @@
  * 并且只放行本仓库内容读写所需要的那些路径。
  */
 
-import { verifySession } from "../_lib/security.js";
+import { verifySession, verifyDevice } from "../_lib/security.js";
 
 const OWNER = "QWQwul";
 const REPO = "fuwari";
@@ -91,17 +91,30 @@ async function callGitHub(path, request, env) {
 export async function onRequest({ request, env, params }) {
 	if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
-	const token = readSession(request);
-	if (!token) return json({ message: "缺少会话令牌，请重新登录后台" }, 401);
-
 	if (!env.SESSION_SECRET) return json({ message: "网关尚未配置 SESSION_SECRET" }, 503);
 	if (!env.GITHUB_API_TOKEN) return json({ message: "网关尚未配置 GITHUB_API_TOKEN" }, 503);
 
-	let session;
-	try {
-		session = await verifySession(env.SESSION_SECRET, token);
-	} catch {
-		session = null;
+	const token = readSession(request);
+	let session = null;
+	if (token) {
+		try {
+			session = await verifySession(env.SESSION_SECRET, token);
+		} catch {
+			session = null;
+		}
+	}
+	if (!session) {
+		const cookie = request.headers.get("cookie") || "";
+		const raw = cookie
+			.split(";")
+			.map((part) => part.trim())
+			.find((part) => part.startsWith("fw_dev="));
+		if (raw) {
+			const device = await verifyDevice(env.SESSION_SECRET, raw.slice(7), {
+				ua: request.headers.get("user-agent") || "",
+			}).catch(() => null);
+			if (device) session = { sub: device.sub || "admin", via: "device" };
+		}
 	}
 	if (!session) return json({ message: "会话已失效，请重新登录后台" }, 401);
 

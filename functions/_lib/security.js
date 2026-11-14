@@ -181,6 +181,37 @@ export function newTotpSecret() {
 }
 
 /** 会话令牌：base64url(payload).base64url(HMAC-SHA256)。 */
+/** 设备指纹：UA 的 SHA-256 前缀，用于把长期设备令牌绑在“这台设备”上。 */
+async function deviceFingerprint(ua) {
+	const digest = await crypto.subtle.digest("SHA-256", enc.encode("fw-device|" + (ua || "")));
+	return toHex(new Uint8Array(digest)).slice(0, 24);
+}
+
+/** 签发长期“可信设备”令牌（默认 180 天），只能在本设备 UA 下使用。 */
+export async function issueDevice(secret, { ttlSeconds = 180 * 24 * 3600, ua = "", sub = "admin" } = {}) {
+	const keyBytes = b64urlDecode(secret);
+	const now = Math.floor(Date.now() / 1000);
+	const payload = {
+		typ: "device",
+		sub,
+		ua: await deviceFingerprint(ua),
+		iat: now,
+		exp: now + ttlSeconds,
+		jti: b64urlEncode(crypto.getRandomValues(new Uint8Array(9))),
+	};
+	const body = b64urlEncode(enc.encode(JSON.stringify(payload)));
+	const sig = b64urlEncode(await hmacSha256(keyBytes, body));
+	return { token: `${body}.${sig}`, expiresAt: new Date(payload.exp * 1000).toISOString() };
+}
+
+/** 校验可信设备令牌：签名、类型、有效期、UA 指纹都要对上。 */
+export async function verifyDevice(secret, token, { ua = "" } = {}) {
+	const payload = await verifySession(secret, token);
+	if (!payload || payload.typ !== "device") return null;
+	if (payload.ua !== (await deviceFingerprint(ua))) return null;
+	return payload;
+}
+
 export async function issueSession(secret, ttlSeconds = 8 * 3600, sub = "admin") {
 	const keyBytes = b64urlDecode(secret);
 	const now = Math.floor(Date.now() / 1000);
