@@ -46,8 +46,7 @@
         var splash = document.getElementById("admin-splash");
         var ticks = 0;
         var timer = setInterval(function () {
-          var root = document.getElementById("sveltia-cms") || document.querySelector("#sveltia-cms, #nc-root");
-          var mounted = !!(root && root.childElementCount > 0);
+          var mounted = !!document.querySelector("body > div:not(#admin-splash)");
           if (mounted) {
             clearInterval(timer);
             splash.classList.add("is-hidden");
