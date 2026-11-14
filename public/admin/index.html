@@ -4,43 +4,55 @@
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=5"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="robots" content="noindex, nofollow" />
-    <meta
-      name="theme-color"
-      content="#f7f2e6"
-      media="(prefers-color-scheme: light)"
-    />
-    <meta
-      name="theme-color"
-      content="#0e0d0a"
-      media="(prefers-color-scheme: dark)"
-    />
+    <meta name="theme-color" content="#f7f2e6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#12100c" media="(prefers-color-scheme: dark)" />
     <title>内容后台 · QWQ</title>
     <link rel="icon" href="/favicon/favicon-light-192.png" />
-    <link rel="stylesheet" href="/admin/brand.css" />
+    <style>
+      :root { color-scheme: light dark; --splash-bg: #f7f2e6; --splash-fg: #6f6a5c; }
+      @media (prefers-color-scheme: dark) {
+        :root { --splash-bg: #12100c; --splash-fg: #a9a294; }
+      }
+      html, body { margin: 0; background: var(--splash-bg); }
+      #admin-splash {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 16px; background: var(--splash-bg); color: var(--splash-fg);
+        font: 14px/1.6 Roboto, "Noto Sans SC", system-ui, sans-serif;
+        transition: opacity .35s ease;
+      }
+      #admin-splash img {
+        width: 72px; height: 72px; border-radius: 20px; background: #fff;
+        padding: 12px; box-sizing: border-box;
+        box-shadow: 0 14px 34px -20px rgba(90, 74, 34, .5);
+        animation: float 2.4s ease-in-out infinite;
+      }
+      #admin-splash.is-hidden { opacity: 0; pointer-events: none; }
+      @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+      @media (prefers-reduced-motion: reduce) { #admin-splash img { animation: none } }
+    </style>
   </head>
   <body>
     <div id="admin-splash" role="status" aria-live="polite">
       <img src="/favicon/favicon-light-192.png" alt="" />
       <p>正在加载内容后台…</p>
     </div>
-    <script src="/vendor/decap-cms.js"></script>
+    <script src="/vendor/sveltia-cms.js"></script>
     <script>
       (function () {
         var splash = document.getElementById("admin-splash");
         var ticks = 0;
         var timer = setInterval(function () {
-          var root = document.getElementById("nc-root");
+          var root = document.getElementById("sveltia-cms") || document.querySelector("#sveltia-cms, #nc-root");
           var mounted = !!(root && root.childElementCount > 0);
           if (mounted) {
             clearInterval(timer);
             splash.classList.add("is-hidden");
-            setTimeout(function () {
-              splash.remove();
-            }, 400);
-          } else if (++ticks > 160) {
+            setTimeout(function () { splash.remove(); }, 400);
+          } else if (++ticks > 240) {
             clearInterval(timer);
             splash.innerHTML = "<p>后台加载失败，请检查网络后刷新重试。</p>";
           }
