@@ -1,4 +1,4 @@
-import { verifySession, b64urlDecode, issueSession, b64urlEncode } from "../_lib/security.js";
+import { verifySession, b64urlDecode, issueSession, b64urlEncode } from "../../_lib/security.js";
 import {
 	verifyRegistration,
 	verifyAssertion,
@@ -9,7 +9,7 @@ import {
 	updateCredential,
 	randomChallenge,
 	parseClientData,
-} from "../_lib/webauthn.js";
+} from "../../_lib/webauthn.js";
 
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 const MAX_BODY = 64 * 1024;
