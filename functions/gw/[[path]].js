@@ -6,7 +6,7 @@
  * 并且只放行本仓库内容读写所需要的那些路径。
  */
 
-import { verifySession, verifyDevice } from "../_lib/security.js";
+import { verifySession } from "../_lib/security.js";
 
 const OWNER = "QWQwul";
 const REPO = "fuwari";
@@ -101,19 +101,6 @@ export async function onRequest({ request, env, params }) {
 			session = await verifySession(env.SESSION_SECRET, token);
 		} catch {
 			session = null;
-		}
-	}
-	if (!session) {
-		const cookie = request.headers.get("cookie") || "";
-		const raw = cookie
-			.split(";")
-			.map((part) => part.trim())
-			.find((part) => part.startsWith("fw_dev="));
-		if (raw) {
-			const device = await verifyDevice(env.SESSION_SECRET, raw.slice(7), {
-				ua: request.headers.get("user-agent") || "",
-			}).catch(() => null);
-			if (device) session = { sub: device.sub || "admin", via: "device" };
 		}
 	}
 	if (!session) return json({ message: "会话已失效，请重新登录后台" }, 401);

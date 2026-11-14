@@ -6,7 +6,7 @@
  * 浏览器永远拿不到 GitHub PAT，PAT 只存在于 Pages 环境变量里。
  */
 
-import { issueSession, verifyDevice } from "./_lib/security.js";
+
 
 const PAGE = `<!doctype html>
 <html lang="zh-CN">
@@ -108,6 +108,12 @@ button:disabled{opacity:.55;cursor:progress;transform:none}
 .msg.ok{color:var(--primary-strong)}
 .hint{margin-top:18px;font-size:12px;color:var(--fg-muted);line-height:1.6}
 .hint a{color:var(--primary-strong)}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--border);font-weight:500}
+button.ghost:hover:not(:disabled){background:var(--bg);border-color:var(--primary);transform:none}
+#after{display:none}
+#after.on{display:block}
+#after .sep{height:1px;background:var(--border);margin:22px 0 4px}
+#after p{margin:14px 0 0;font-size:13px;color:var(--fg-muted);line-height:1.6}
 details{margin-top:16px;font-size:12.5px;color:var(--fg-muted)}
 summary{cursor:pointer;user-select:none}
 details label{margin-top:10px}
@@ -133,50 +139,135 @@ details label{margin-top:10px}
     <button id="go" type="submit">登录</button>
     <div class="msg" id="msg" role="status" aria-live="polite"></div>
   </form>
+  <div class="sep" style="height:1px;background:var(--border);margin:22px 0 0"></div>
+  <button id="pk" type="button" class="ghost">用指纹 / 面容登录</button>
+  <div id="after">
+    <div class="sep"></div>
+    <p id="afterText">已通过口令验证。可以顺手启用指纹登录，下次一键进入。</p>
+    <button id="enablePk" type="button">启用指纹登录</button>
+    <button id="enter" type="button" class="ghost">直接进入后台</button>
+  </div>
   <p class="hint">会话 8 小时自动失效。若连续输错会被临时限制，等待 10 分钟再试。</p>
 </main>
 <script>
 (function(){
   var form=document.getElementById("f"),msg=document.getElementById("msg"),btn=document.getElementById("go");
   var opener=window.opener,handshaken=false,pendingPayload=null;
-  function send(msgText){if(opener&&!opener.closed){try{opener.postMessage(msgText,window.location.origin);}catch(e){}}}
   var codeEl=document.getElementById("code"),pwEl=document.getElementById("pw"),rcEl=document.getElementById("recovery");
+  var pkBtn=document.getElementById("pk"),after=document.getElementById("after"),afterText=document.getElementById("afterText");
+  var enablePk=document.getElementById("enablePk"),enterBtn=document.getElementById("enter");
+  var sessionToken=null,supported=!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.get);
+
+  function send(m){if(opener&&!opener.closed){try{opener.postMessage(m,window.location.origin);}catch(e){}}}
   function say(text,ok){msg.textContent=text||"";msg.className="msg"+(ok?" ok":"");}
   window.addEventListener("message",function(ev){
     if(ev.origin!==window.location.origin)return;
-    if(ev.data==="authorizing:github"){
-      handshaken=true;
-      if(pendingPayload){send(pendingPayload);pendingPayload=null;}
-    }
+    if(ev.data==="authorizing:github"){handshaken=true;if(pendingPayload){send(pendingPayload);pendingPayload=null;}}
   });
   var hsTries=0,hsTimer=setInterval(function(){
     if(handshaken||hsTries++>40){clearInterval(hsTimer);return;}
     send("authorizing:github");
   },250);
+
+  function b64ToBuf(s){
+    var b64=s.replace(/-/g,"+").replace(/_/g,"/");
+    var pad=b64.length%4;if(pad)b64+="====".slice(0,4-pad);
+    var raw=atob(b64),out=new Uint8Array(raw.length);
+    for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
+    return out.buffer;
+  }
+  function bufToB64(buf){
+    var u=new Uint8Array(buf),s="";
+    for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
+    return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  }
+
   function deliver(token){
     var payload="authorization:github:success:"+JSON.stringify({token:token,provider:"github"});
     if(handshaken){send(payload);}else{pendingPayload=payload;}
     btn.disabled=true;btn.textContent="已登录，正在返回…";
     say("登录成功，正在返回后台…",true);
   }
+
+  function showAfter(token){
+    sessionToken=token;
+    form.style.display="none";
+    after.className="on";
+    pkBtn.style.display="none";
+    say("");
+    btn.disabled=false;btn.textContent="登录";
+  }
+
   form.addEventListener("submit",function(ev){
     ev.preventDefault();
     var password=pwEl.value,code=codeEl.value.trim(),recovery=rcEl.value.trim();
     if(!password){say("请输入管理口令");return;}
-    if(!recovery&&!/^\\d{6}$/.test(code)){say("请输入 6 位动态验证码");return;}
+    if(!recovery&&!/^[0-9]{6}$/.test(code)){say("请输入 6 位动态验证码");return;}
     btn.disabled=true;say("正在验证…",true);
-    fetch("/auth/verify",{
-      method:"POST",
-      headers:{"content-type":"application/json"},
-      body:JSON.stringify({password:password,code:code,recovery:recovery||undefined})
-    }).then(function(r){return r.json().catch(function(){return {ok:false,error:"服务返回异常"};});})
+    fetch("/auth/verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:password,code:code,recovery:recovery||undefined})})
+      .then(function(r){return r.json().catch(function(){return {ok:false,error:"服务返回异常"};});})
       .then(function(data){
-        if(data&&data.ok&&data.token){deliver(data.token);return;}
-        btn.disabled=false;btn.textContent="登录";
-        say((data&&data.error)||"登录失败，请重试");
+        if(data&&data.ok&&data.token){
+          if(supported){showAfter(data.token);}
+          else{deliver(data.token);}
+          return;
+        }
+        btn.disabled=false;btn.textContent="登录";say((data&&data.error)||"登录失败，请重试");
       })
       .catch(function(){btn.disabled=false;btn.textContent="登录";say("网络异常，请重试");});
   });
+
+  enterBtn.addEventListener("click",function(){ if(sessionToken)deliver(sessionToken); });
+
+  enablePk.addEventListener("click",function(){
+    if(!sessionToken)return;
+    enablePk.disabled=true;say("正在唤起系统指纹…",true);
+    fetch("/auth/webauthn/register-options",{method:"POST",headers:{authorization:"Bearer "+sessionToken,"content-type":"application/json"},body:"{}"})
+      .then(function(r){return r.json();})
+      .then(function(opt){
+        if(!opt||!opt.ok)throw new Error((opt&&opt.error)||"无法开始注册");
+        var pk=opt.publicKey;
+        pk.challenge=b64ToBuf(pk.challenge);
+        pk.user.id=b64ToBuf(pk.user.id);
+        pk.excludeCredentials=(pk.excludeCredentials||[]).map(function(c){return {type:c.type,id:b64ToBuf(c.id)};});
+        return navigator.credentials.create({publicKey:pk}).then(function(cred){
+          if(!cred)throw new Error("未创建凭据");
+          return fetch("/auth/webauthn/register-verify",{method:"POST",headers:{authorization:"Bearer "+sessionToken,"content-type":"application/json"},body:JSON.stringify({challengeId:opt.challengeId,clientDataJSON:bufToB64(cred.response.clientDataJSON),attestationObject:bufToB64(cred.response.attestationObject)})});
+        });
+      })
+      .then(function(r){return r.json();})
+      .then(function(res){
+        enablePk.disabled=false;
+        if(res&&res.ok){say("指纹登录已启用，下次可直接用指纹进入",true);afterText.textContent="指纹登录已启用。以后打开后台点「用指纹 / 面容登录」即可。";enablePk.style.display="none";}
+        else{throw new Error((res&&res.error)||"启用失败");}
+      })
+      .catch(function(e){enablePk.disabled=false;say((e&&e.message)||"启用失败，请重试");});
+  });
+
+  pkBtn.addEventListener("click",function(){
+    if(!supported){say("这台浏览器不支持指纹登录");return;}
+    pkBtn.disabled=true;say("正在唤起系统指纹…",true);
+    fetch("/auth/webauthn/login-options",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})
+      .then(function(r){return r.json();})
+      .then(function(opt){
+        if(!opt||!opt.ok){throw new Error((opt&&opt.error)||"尚未注册指纹");}
+        var pk=opt.publicKey;
+        pk.challenge=b64ToBuf(pk.challenge);
+        pk.allowCredentials=(pk.allowCredentials||[]).map(function(c){return {type:c.type,id:b64ToBuf(c.id)};});
+        return navigator.credentials.get({publicKey:pk}).then(function(cred){
+          if(!cred)throw new Error("未返回凭据");
+          return fetch("/auth/webauthn/login-verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challengeId:opt.challengeId,credentialId:bufToB64(cred.rawId),authenticatorData:bufToB64(cred.response.authenticatorData),clientDataJSON:bufToB64(cred.response.clientDataJSON),signature:bufToB64(cred.response.signature)})});
+        });
+      })
+      .then(function(r){return r.json();})
+      .then(function(res){
+        pkBtn.disabled=false;
+        if(res&&res.ok&&res.token){deliver(res.token);}
+        else{throw new Error((res&&res.error)||"指纹登录失败");}
+      })
+      .catch(function(e){pkBtn.disabled=false;say((e&&e.message)||"指纹登录失败");});
+  });
+
   pwEl.focus();
 })();
 </script>
@@ -184,81 +275,7 @@ details label{margin-top:10px}
 </html>`;
 
 
-const AUTO_PAGE = (token) => `<!doctype html>
-<html lang="zh-CN">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="robots" content="noindex, nofollow" />
-<title>正在进入后台 · QWQ</title>
-<style>
-:root{--bg:#f7f2e6;--fg:#6f6a5c;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#12100c;--fg:#a9a294}}
-html,body{height:100%;margin:0}
-body{display:grid;place-items:center;background:var(--bg);color:var(--fg);font:14px/1.7 "Noto Sans SC",system-ui,sans-serif;text-align:center;padding:24px}
-a{color:inherit;opacity:.6;font-size:12px;margin-top:14px;display:inline-block}
-</style></head>
-<body>
-<div>
-  <p>已识别为本机设备，正在进入后台…</p>
-  <a href="/auth?forget=1">不是本人？退出本机信任</a>
-</div>
-<script>
-(function(){
-  var token = ${JSON.stringify(token)};
-  var opener = window.opener;
-  function send(m){ if(opener && !opener.closed){ try{ opener.postMessage(m, window.location.origin); }catch(e){} } }
-  function done(){
-    send("authorization:github:success:" + JSON.stringify({token: token, provider: "github"}));
-    setTimeout(function(){ try{ window.close(); }catch(e){} }, 600);
-  }
-  var handshake = false;
-  window.addEventListener("message", function(ev){
-    if(ev.origin !== window.location.origin) return;
-    if(ev.data === "authorizing:github"){ handshake = true; done(); }
-  });
-  var tries = 0;
-  var timer = setInterval(function(){
-    if(handshake || tries++ > 40){ clearInterval(timer); return; }
-    send("authorizing:github");
-  }, 250);
-  // 没有 opener（直接访问）时 3 秒后跳回后台
-  if(!opener){ setTimeout(function(){ location.replace("/admin/"); }, 1500); }
-})();
-</script>
-</body></html>`;
-
-export async function onRequestGet({ request, env }) {
-	const url = new URL(request.url);
-	if (url.searchParams.get("forget") === "1") {
-		return new Response(PAGE, {
-			headers: {
-				"content-type": "text/html; charset=utf-8",
-				"cache-control": "no-store",
-				"set-cookie": "fw_dev=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
-			},
-		});
-	}
-
-	const ua = request.headers.get("user-agent") || "";
-	const cookieHeader = request.headers.get("cookie") || "";
-	const deviceCookie = cookieHeader
-		.split(";")
-		.map((part) => part.trim())
-		.find((part) => part.startsWith("fw_dev="));
-	if (deviceCookie && env?.SESSION_SECRET) {
-		const device = await verifyDevice(env.SESSION_SECRET, deviceCookie.slice(7), { ua });
-		if (device) {
-			const session = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
-			return new Response(AUTO_PAGE(session.token), {
-				headers: {
-					"content-type": "text/html; charset=utf-8",
-					"cache-control": "no-store",
-					"x-robots-tag": "noindex, nofollow",
-					"referrer-policy": "no-referrer",
-				},
-			});
-		}
-	}
-
+export async function onRequestGet() {
 	return new Response(PAGE, {
 		headers: {
 			"content-type": "text/html; charset=utf-8",
