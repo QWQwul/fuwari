@@ -141,32 +141,24 @@ details label{margin-top:10px}
   </form>
   <div class="sep" style="height:1px;background:var(--border);margin:22px 0 0"></div>
   <button id="pk" type="button" class="ghost">用指纹 / 面容登录</button>
-  <div id="after">
-    <div class="sep"></div>
-    <p id="afterText">已通过口令验证。可以顺手启用指纹登录，下次一键进入。</p>
-    <button id="enablePk" type="button">启用指纹登录</button>
-    <button id="enter" type="button" class="ghost">直接进入后台</button>
-  </div>
+  <p class="hint" style="margin-top:12px"><a href="/passkey">启用 / 重置指纹登录</a>（会离开当前登录窗口）</p>
   <p class="hint">会话 8 小时自动失效。若连续输错会被临时限制，等待 10 分钟再试。</p>
 </main>
 <script>
 (function(){
   var form=document.getElementById("f"),msg=document.getElementById("msg"),btn=document.getElementById("go");
-  var opener=window.opener,handshaken=false,pendingPayload=null;
+  var opener=window.opener,handshaken=false;
   var codeEl=document.getElementById("code"),pwEl=document.getElementById("pw"),rcEl=document.getElementById("recovery");
-  var pkBtn=document.getElementById("pk"),after=document.getElementById("after"),afterText=document.getElementById("afterText");
-  var enablePk=document.getElementById("enablePk"),enterBtn=document.getElementById("enter");
-  var sessionToken=null,supported=!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.get);
-  var countdownTimer=null,remaining=0;
+  var pkBtn=document.getElementById("pk");
+  var supported=!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.get);
 
   function send(m){if(opener&&!opener.closed){try{opener.postMessage(m,window.location.origin);}catch(e){}}}
   function say(text,ok){msg.textContent=text||"";msg.className="msg"+(ok?" ok":"");}
 
   window.addEventListener("message",function(ev){
     if(ev.origin!==window.location.origin)return;
-    if(ev.data==="authorizing:github"){handshaken=true;if(pendingPayload){send(pendingPayload);}}
+    if(ev.data==="authorizing:github")handshaken=true;
   });
-
   var hsTries=0,hsTimer=setInterval(function(){
     if(handshaken||hsTries++>20){clearInterval(hsTimer);return;}
     send("authorizing:github");
@@ -179,46 +171,39 @@ details label{margin-top:10px}
     for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
     return out.buffer;
   }
+  function withTimeout(promise,ms,label){
+    return Promise.race([promise,new Promise(function(_,reject){
+      setTimeout(function(){reject(new Error(label+"超时（"+Math.round(ms/1000)+" 秒），请关掉系统弹窗后重试"));},ms);
+    })]);
+  }
   function bufToB64(buf){
     var u=new Uint8Array(buf),s="";
     for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
     return btoa(s).split("+").join("-").split("/").join("_").split("=").join("");
   }
 
-  // 关键：不再依赖握手。Sveltia 不握手时也要把令牌送出去，重复几次直到窗口关闭。
+  // 令牌一到就立刻送回去，并在 3 秒内重复几次，保证 Sveltia / Decap 都能收到。
   function deliver(token){
     var payload="authorization:github:success:"+JSON.stringify({token:token,provider:"github"});
-    pendingPayload=payload;
+    if(!opener||opener.closed){
+      btn.disabled=true;btn.textContent="已登录";
+      say("登录成功，请回到后台页面继续。",true);
+      var box=document.createElement("p");
+      box.className="hint";
+      box.innerHTML='<a href="/admin/">打开内容后台 →</a>';
+      form.appendChild(box);
+      return;
+    }
     send(payload);
     var tries=0;
     var t=setInterval(function(){
       tries++;
-      if(!opener||opener.closed||tries>10){clearInterval(t);return;}
+      if(!opener||opener.closed||tries>8){clearInterval(t);return;}
       send(payload);
-    },400);
-    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
+    },350);
     btn.disabled=true;btn.textContent="已登录，正在返回…";
     say("登录成功，正在返回后台…",true);
-    setTimeout(function(){try{window.close();}catch(e){}},1800);
-  }
-
-  function showAfter(token){
-    sessionToken=token;
-    form.style.display="none";
-    after.className="on";
-    pkBtn.style.display="none";
-    say("");
-    var left=8;
-    afterText.textContent="已通过口令验证。"+(supported?"可启用指纹登录，下次一键进入。":"");
-    if(supported&&remaining===0){/* noop */}
-    var tick=function(){
-      left--;
-      if(left<=0){clearInterval(countdownTimer);countdownTimer=null;deliver(sessionToken);return;}
-      afterText.textContent="已通过口令验证。"+(supported?"可启用指纹登录，":"")+left+" 秒后自动进入后台。";
-    };
-    if(countdownTimer)clearInterval(countdownTimer);
-    countdownTimer=setInterval(tick,1000);
-    afterText.textContent="已通过口令验证。"+(supported?"可启用指纹登录，":"")+"8 秒后自动进入后台。";
+    setTimeout(function(){try{window.close();}catch(e){}},1500);
   }
 
   form.addEventListener("submit",function(ev){
@@ -230,49 +215,10 @@ details label{margin-top:10px}
     fetch("/auth/verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:password,code:code,recovery:recovery||undefined})})
       .then(function(r){return r.json().catch(function(){return {ok:false,error:"服务返回异常"};});})
       .then(function(data){
-        if(data&&data.ok&&data.token){
-          if(supported){showAfter(data.token);}else{deliver(data.token);}
-          return;
-        }
+        if(data&&data.ok&&data.token){deliver(data.token);return;}
         btn.disabled=false;btn.textContent="登录";say((data&&data.error)||"登录失败，请重试");
       })
       .catch(function(){btn.disabled=false;btn.textContent="登录";say("网络异常，请重试");});
-  });
-
-  enterBtn.addEventListener("click",function(){
-    if(sessionToken)deliver(sessionToken);
-  });
-
-  enablePk.addEventListener("click",function(){
-    if(!sessionToken)return;
-    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
-    enablePk.disabled=true;say("正在唤起系统指纹…",true);
-    fetch("/auth/webauthn/register-options",{method:"POST",headers:{authorization:"Bearer "+sessionToken,"content-type":"application/json"},body:"{}"})
-      .then(function(r){return r.json();})
-      .then(function(opt){
-        if(!opt||!opt.ok)throw new Error((opt&&opt.error)||"无法开始注册");
-        var pk=opt.publicKey;
-        pk.challenge=b64ToBuf(pk.challenge);
-        pk.user.id=b64ToBuf(pk.user.id);
-        pk.excludeCredentials=(pk.excludeCredentials||[]).map(function(c){return {type:c.type,id:b64ToBuf(c.id)};});
-        return navigator.credentials.create({publicKey:pk}).then(function(cred){
-          if(!cred)throw new Error("未创建凭据");
-          return fetch("/auth/webauthn/register-verify",{method:"POST",headers:{authorization:"Bearer "+sessionToken,"content-type":"application/json"},body:JSON.stringify({challengeId:opt.challengeId,clientDataJSON:bufToB64(cred.response.clientDataJSON),attestationObject:bufToB64(cred.response.attestationObject)})});
-        });
-      })
-      .then(function(r){return r.json();})
-      .then(function(res){
-        enablePk.disabled=false;
-        if(res&&res.ok){
-          enablePk.style.display="none";
-          afterText.textContent="指纹登录已启用，下次可直接用指纹进入。";
-          say("指纹登录已启用",true);
-          setTimeout(function(){deliver(sessionToken);},900);
-        }else{
-          throw new Error((res&&res.error)||"启用失败");
-        }
-      })
-      .catch(function(e){enablePk.disabled=false;say(((e&&e.name&&e.name!=="Error")?e.name+"：":"")+((e&&e.message)||"启用失败，请重试"));});
   });
 
   pkBtn.addEventListener("click",function(){
@@ -281,11 +227,11 @@ details label{margin-top:10px}
     fetch("/auth/webauthn/login-options",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})
       .then(function(r){return r.json();})
       .then(function(opt){
-        if(!opt||!opt.ok)throw new Error((opt&&opt.error)||"尚未注册指纹，请先用口令登录并启用");
+        if(!opt||!opt.ok)throw new Error((opt&&opt.error)||"尚未注册指纹，请先到 /passkey 启用");
         var pk=opt.publicKey;
         pk.challenge=b64ToBuf(pk.challenge);
         pk.allowCredentials=(pk.allowCredentials||[]).map(function(c){return {type:c.type,id:b64ToBuf(c.id)};});
-        return navigator.credentials.get({publicKey:pk}).then(function(cred){
+        return withTimeout(navigator.credentials.get({publicKey:pk}),120000,"系统指纹").then(function(cred){
           if(!cred)throw new Error("未返回凭据");
           return fetch("/auth/webauthn/login-verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challengeId:opt.challengeId,credentialId:bufToB64(cred.rawId),authenticatorData:bufToB64(cred.response.authenticatorData),clientDataJSON:bufToB64(cred.response.clientDataJSON),signature:bufToB64(cred.response.signature)})});
         });
@@ -296,10 +242,13 @@ details label{margin-top:10px}
         if(res&&res.ok&&res.token){deliver(res.token);}
         else{throw new Error((res&&res.error)||"指纹登录失败");}
       })
-      .catch(function(e){pkBtn.disabled=false;say(((e&&e.name&&e.name!=="Error")?e.name+"：":"")+((e&&e.message)||"指纹登录失败"));});
+      .catch(function(e){
+        pkBtn.disabled=false;
+        var name=(e&&e.name&&e.name!=="Error")?e.name+"：":"";
+        say(name+((e&&e.message)||"指纹登录失败"));
+      });
   });
 
-  // 没有注册过指纹时就不显示指纹按钮，避免点了没反应。
   if(supported){
     fetch("/auth/webauthn/status").then(function(r){return r.json();}).then(function(st){
       if(!st||!st.ok||!st.count){pkBtn.style.display="none";}

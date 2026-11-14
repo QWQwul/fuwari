@@ -80,9 +80,14 @@ export async function onRequestPost({ request, env }) {
 	const rpId = rpIdOf(request);
 
 	try {
-		if (action === "register-options" || action === "register-verify") {
+		if (action === "register-options" || action === "register-verify" || action === "reset") {
 			const session = sessionFrom(request, env);
 			if (!session) return json({ ok: false, error: "未登录" }, 401);
+		}
+
+		if (action === "reset") {
+			await kv.delete("passkeys");
+			return json({ ok: true, count: 0 });
 		}
 
 		if (action === "register-options") {
