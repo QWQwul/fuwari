@@ -272,7 +272,7 @@ details label{margin-top:10px}
           throw new Error((res&&res.error)||"启用失败");
         }
       })
-      .catch(function(e){enablePk.disabled=false;say((e&&e.message)||"启用失败，请重试");});
+      .catch(function(e){enablePk.disabled=false;say(((e&&e.name&&e.name!=="Error")?e.name+"：":"")+((e&&e.message)||"启用失败，请重试"));});
   });
 
   pkBtn.addEventListener("click",function(){
@@ -296,7 +296,7 @@ details label{margin-top:10px}
         if(res&&res.ok&&res.token){deliver(res.token);}
         else{throw new Error((res&&res.error)||"指纹登录失败");}
       })
-      .catch(function(e){pkBtn.disabled=false;say((e&&e.message)||"指纹登录失败");});
+      .catch(function(e){pkBtn.disabled=false;say(((e&&e.name&&e.name!=="Error")?e.name+"：":"")+((e&&e.message)||"指纹登录失败"));});
   });
 
   // 没有注册过指纹时就不显示指纹按钮，避免点了没反应。

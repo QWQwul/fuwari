@@ -45,8 +45,8 @@ function publicKeyOptions(request, { challenge, userVerification = "preferred", 
 			timeout: 60000,
 			attestation: "none",
 			authenticatorSelection: {
-				authenticatorAttachment: "platform",
-				residentKey: "preferred",
+				residentKey: "required",
+				requireResidentKey: true,
 				userVerification,
 			},
 			excludeCredentials: creds.map((c) => ({ type: "public-key", id: c.id })),
@@ -111,9 +111,15 @@ export async function onRequestPost({ request, env }) {
 				id: result.credentialId,
 				publicKeyJwk: result.publicKeyJwk,
 				signCount: result.signCount,
+				rpId,
+				aaguid: result.aaguid,
+				flags: result.flags,
+				backupEligible: result.backupEligible,
+				backupState: result.backupState,
 				createdAt: new Date().toISOString(),
 				lastUsedAt: null,
 			});
+			console.log("passkey registered:", JSON.stringify({ id: result.credentialId.slice(0, 12), aaguid: result.aaguid, flags: result.flags }));
 			return json({ ok: true, credentialId: result.credentialId });
 		}
 
@@ -128,7 +134,7 @@ export async function onRequestPost({ request, env }) {
 				publicKey: publicKeyOptions(request, {
 					challenge,
 					userVerification: "required",
-					allowCredentials: credentials.map((c) => ({ type: "public-key", id: c.id })),
+					allowCredentials: [],
 				}),
 			});
 		}

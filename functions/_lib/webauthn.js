@@ -27,11 +27,12 @@ export function parseAuthData(bytes) {
 	const rpIdHash = view.slice(0, 32);
 	const flags = view[32];
 	const signCount = ((view[33] << 24) | (view[34] << 16) | (view[35] << 8) | view[36]) >>> 0;
-	const parsed = { rpIdHash, flags, signCount, credentialId: null, coseKey: null, extensions: null };
+	const parsed = { rpIdHash, flags, signCount, credentialId: null, coseKey: null, extensions: null, aaguid: null };
 	let offset = 37;
 	const hasAttested = (flags & 0x40) !== 0;
 	if (hasAttested) {
 		if (view.length < offset + 18) throw new Error("attested 数据不完整");
+		parsed.aaguid = toHexString(view.slice(offset, offset + 16));
 		const credIdLen = (view[offset + 16] << 8) | view[offset + 17];
 		offset += 18;
 		parsed.credentialId = view.slice(offset, offset + credIdLen);
@@ -61,6 +62,12 @@ export function coseToJwk(cose) {
 		y: b64urlEncode(y),
 		ext: true,
 	};
+}
+
+function toHexString(bytes) {
+	let out = "";
+	for (const b of bytes) out += b.toString(16).padStart(2, "0");
+	return out;
 }
 
 export async function sha256(bytes) {
@@ -125,6 +132,10 @@ export async function verifyRegistration({ attestationObject, clientDataJSON, ch
 		credentialId: b64urlEncode(parsed.credentialId),
 		publicKeyJwk: coseToJwk(parsed.coseKey),
 		signCount: parsed.signCount,
+		aaguid: parsed.aaguid || "unknown",
+		flags: parsed.flags,
+		backupEligible: (parsed.flags & 0x08) !== 0,
+		backupState: (parsed.flags & 0x10) !== 0,
 	};
 }
 
