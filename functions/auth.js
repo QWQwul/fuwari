@@ -299,6 +299,15 @@ details label{margin-top:10px}
       .catch(function(e){pkBtn.disabled=false;say((e&&e.message)||"指纹登录失败");});
   });
 
+  // 没有注册过指纹时就不显示指纹按钮，避免点了没反应。
+  if(supported){
+    fetch("/auth/webauthn/status").then(function(r){return r.json();}).then(function(st){
+      if(!st||!st.ok||!st.count){pkBtn.style.display="none";}
+    }).catch(function(){});
+  }else{
+    pkBtn.style.display="none";
+  }
+
   pwEl.focus();
 })();
 </script>

@@ -163,6 +163,18 @@ export async function onRequestPost({ request, env }) {
 	}
 }
 
-export async function onRequestGet() {
+export async function onRequestGet({ request, env }) {
+	const action = new URL(request.url).pathname.split("/").filter(Boolean).pop();
+	if (action === "status") {
+		const kv = env.CMS_KV;
+		if (!kv) return json({ ok: true, count: 0, kv: false });
+		try {
+			const list = await listCredentials(kv);
+			return json({ ok: true, count: list.length, kv: true });
+		} catch (error) {
+			console.error("webauthn status:", error?.message);
+			return json({ ok: true, count: 0, kv: false });
+		}
+	}
 	return json({ ok: false, error: "只支持 POST" }, 405);
 }
