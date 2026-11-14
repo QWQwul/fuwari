@@ -157,21 +157,24 @@ details label{margin-top:10px}
   var pkBtn=document.getElementById("pk"),after=document.getElementById("after"),afterText=document.getElementById("afterText");
   var enablePk=document.getElementById("enablePk"),enterBtn=document.getElementById("enter");
   var sessionToken=null,supported=!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.get);
+  var countdownTimer=null,remaining=0;
 
   function send(m){if(opener&&!opener.closed){try{opener.postMessage(m,window.location.origin);}catch(e){}}}
   function say(text,ok){msg.textContent=text||"";msg.className="msg"+(ok?" ok":"");}
+
   window.addEventListener("message",function(ev){
     if(ev.origin!==window.location.origin)return;
-    if(ev.data==="authorizing:github"){handshaken=true;if(pendingPayload){send(pendingPayload);pendingPayload=null;}}
+    if(ev.data==="authorizing:github"){handshaken=true;if(pendingPayload){send(pendingPayload);}}
   });
+
   var hsTries=0,hsTimer=setInterval(function(){
-    if(handshaken||hsTries++>40){clearInterval(hsTimer);return;}
+    if(handshaken||hsTries++>20){clearInterval(hsTimer);return;}
     send("authorizing:github");
   },250);
 
   function b64ToBuf(s){
-    var b64=s.replace(/-/g,"+").replace(/_/g,"/");
-    var pad=b64.length%4;if(pad)b64+="====".slice(0,4-pad);
+    var b64=s.split("-").join("+").split("_").join("/");
+    var pad=b64.length%4;if(pad)b64+=("====").slice(0,4-pad);
     var raw=atob(b64),out=new Uint8Array(raw.length);
     for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
     return out.buffer;
@@ -179,14 +182,24 @@ details label{margin-top:10px}
   function bufToB64(buf){
     var u=new Uint8Array(buf),s="";
     for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
-    return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+    return btoa(s).split("+").join("-").split("/").join("_").split("=").join("");
   }
 
+  // 关键：不再依赖握手。Sveltia 不握手时也要把令牌送出去，重复几次直到窗口关闭。
   function deliver(token){
     var payload="authorization:github:success:"+JSON.stringify({token:token,provider:"github"});
-    if(handshaken){send(payload);}else{pendingPayload=payload;}
+    pendingPayload=payload;
+    send(payload);
+    var tries=0;
+    var t=setInterval(function(){
+      tries++;
+      if(!opener||opener.closed||tries>10){clearInterval(t);return;}
+      send(payload);
+    },400);
+    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
     btn.disabled=true;btn.textContent="已登录，正在返回…";
     say("登录成功，正在返回后台…",true);
+    setTimeout(function(){try{window.close();}catch(e){}},1800);
   }
 
   function showAfter(token){
@@ -195,7 +208,17 @@ details label{margin-top:10px}
     after.className="on";
     pkBtn.style.display="none";
     say("");
-    btn.disabled=false;btn.textContent="登录";
+    var left=8;
+    afterText.textContent="已通过口令验证。"+(supported?"可启用指纹登录，下次一键进入。":"");
+    if(supported&&remaining===0){/* noop */}
+    var tick=function(){
+      left--;
+      if(left<=0){clearInterval(countdownTimer);countdownTimer=null;deliver(sessionToken);return;}
+      afterText.textContent="已通过口令验证。"+(supported?"可启用指纹登录，":"")+left+" 秒后自动进入后台。";
+    };
+    if(countdownTimer)clearInterval(countdownTimer);
+    countdownTimer=setInterval(tick,1000);
+    afterText.textContent="已通过口令验证。"+(supported?"可启用指纹登录，":"")+"8 秒后自动进入后台。";
   }
 
   form.addEventListener("submit",function(ev){
@@ -208,8 +231,7 @@ details label{margin-top:10px}
       .then(function(r){return r.json().catch(function(){return {ok:false,error:"服务返回异常"};});})
       .then(function(data){
         if(data&&data.ok&&data.token){
-          if(supported){showAfter(data.token);}
-          else{deliver(data.token);}
+          if(supported){showAfter(data.token);}else{deliver(data.token);}
           return;
         }
         btn.disabled=false;btn.textContent="登录";say((data&&data.error)||"登录失败，请重试");
@@ -217,10 +239,13 @@ details label{margin-top:10px}
       .catch(function(){btn.disabled=false;btn.textContent="登录";say("网络异常，请重试");});
   });
 
-  enterBtn.addEventListener("click",function(){ if(sessionToken)deliver(sessionToken); });
+  enterBtn.addEventListener("click",function(){
+    if(sessionToken)deliver(sessionToken);
+  });
 
   enablePk.addEventListener("click",function(){
     if(!sessionToken)return;
+    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
     enablePk.disabled=true;say("正在唤起系统指纹…",true);
     fetch("/auth/webauthn/register-options",{method:"POST",headers:{authorization:"Bearer "+sessionToken,"content-type":"application/json"},body:"{}"})
       .then(function(r){return r.json();})
@@ -238,8 +263,14 @@ details label{margin-top:10px}
       .then(function(r){return r.json();})
       .then(function(res){
         enablePk.disabled=false;
-        if(res&&res.ok){say("指纹登录已启用，下次可直接用指纹进入",true);afterText.textContent="指纹登录已启用。以后打开后台点「用指纹 / 面容登录」即可。";enablePk.style.display="none";}
-        else{throw new Error((res&&res.error)||"启用失败");}
+        if(res&&res.ok){
+          enablePk.style.display="none";
+          afterText.textContent="指纹登录已启用，下次可直接用指纹进入。";
+          say("指纹登录已启用",true);
+          setTimeout(function(){deliver(sessionToken);},900);
+        }else{
+          throw new Error((res&&res.error)||"启用失败");
+        }
       })
       .catch(function(e){enablePk.disabled=false;say((e&&e.message)||"启用失败，请重试");});
   });
@@ -250,7 +281,7 @@ details label{margin-top:10px}
     fetch("/auth/webauthn/login-options",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})
       .then(function(r){return r.json();})
       .then(function(opt){
-        if(!opt||!opt.ok){throw new Error((opt&&opt.error)||"尚未注册指纹");}
+        if(!opt||!opt.ok)throw new Error((opt&&opt.error)||"尚未注册指纹，请先用口令登录并启用");
         var pk=opt.publicKey;
         pk.challenge=b64ToBuf(pk.challenge);
         pk.allowCredentials=(pk.allowCredentials||[]).map(function(c){return {type:c.type,id:b64ToBuf(c.id)};});
