@@ -163,8 +163,8 @@ export async function onRequestPost({ request, env }) {
 				rpId,
 			});
 			await updateCredential(kv, credential.id, { signCount: result.signCount, lastUsedAt: new Date().toISOString() });
-			const token = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
-			return json({ ok: true, token, user: { username: "admin", via: "passkey" } });
+			const session = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
+			return json({ ok: true, token: session.token, expiresAt: session.expiresAt, user: { username: "admin", via: "passkey" } });
 		}
 
 		return json({ ok: false, error: "未知操作" }, 404);
