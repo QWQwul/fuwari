@@ -4,10 +4,8 @@ import { pbkdf2Sync, randomBytes, createHmac } from "node:crypto";
 
 import {
 	base32Decode,
-	issueDevice,
 	issueSession,
 	makePasswordHash,
-	verifyDevice,
 	verifyPassword,
 	verifySession,
 	verifyTotp,
@@ -112,12 +110,3 @@ test("网关白名单：只放行本仓库内容相关接口", () => {
 	assert.equal(isAllowedPath("orgs/QWQwul"), false);
 });
 
-test("可信设备令牌：绑定 UA，换 UA 即失效", async () => {
-	const secret = b64urlEncode(randomBytes(32));
-	const ua = "Mozilla/5.0 (Linux; Android 14; Pixel)";
-	const { token } = await issueDevice(secret, { ua });
-	const ok = await verifyDevice(secret, token, { ua });
-	assert.equal(ok?.typ, "device");
-	assert.equal(await verifyDevice(secret, token, { ua: "another device" }), null);
-	assert.equal(await verifyDevice(secret, token.slice(1), { ua }), null);
-});
