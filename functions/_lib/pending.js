@@ -8,7 +8,7 @@
 
 import { b64urlEncode, b64urlDecode, hmacSha256, timingSafeEqual } from "./security.js";
 
-const TTL_SECONDS = 180;
+const TTL_SECONDS = 600;
 const enc = new TextEncoder();
 
 export function randomId(bytes = 12) {
