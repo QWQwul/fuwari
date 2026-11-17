@@ -209,12 +209,18 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
 document.querySelectorAll("button[data-act]").forEach(function(b){
   b.addEventListener("click",function(){
     b.disabled=true;
-    var base=location.pathname.replace(/\/approve$/, "");
+    var base=location.pathname.indexOf("/approve")>=0?location.pathname.slice(0,location.pathname.indexOf("/approve")):location.pathname;
     fetch(base+"/"+b.dataset.act,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sig:b.dataset.sig})})
       .then(function(r){return r.json();})
       .then(function(d){
-        document.getElementById("msg").textContent=d&&d.ok?(d.status==="approved"?"已批准，请回到电脑上继续":"已拒绝"):((d&&d.error)||"操作失败");
+        var ok=d&&d.ok;
+        document.getElementById("msg").textContent=ok?(d.status==="approved"?"已批准，请回到电脑上继续":"已拒绝"):((d&&d.error)||"操作失败");
         document.querySelectorAll("button[data-act]").forEach(function(x){x.disabled=true;});
+        if(ok){
+          var h=document.querySelector("h1"); if(h) h.textContent=(d.status==="approved"?"已批准登录":"已拒绝登录");
+          var w=document.querySelector(".warn"); if(w) w.remove();
+          document.getElementById("msg").textContent=(d.status==="approved"?"可以关闭这个页面了喵":"已拒绝，若不是你本人操作请检查账号");
+        }
       })
       .catch(function(){document.getElementById("msg").textContent="网络异常，请重试";b.disabled=false;});
   });
