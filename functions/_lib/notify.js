@@ -26,7 +26,7 @@ export function ntfyBase(env) {
  * 发送一条通知。所有取值都会做长度限制，避免头部过长被拒。
  * @returns {Promise<{ok:boolean, status:number, error?:string}>}
  */
-export async function notify(env, { title, message, actions = [], priority = "high", tags = [] }) {
+export async function notify(env, { title, message, click = "", actions = [], priority = "high", tags = [] }) {
 	const topic = String(env.NTFY_TOPIC || "").trim();
 	if (!topic) return { ok: false, status: 0, error: "未配置 NTFY_TOPIC" };
 
@@ -37,8 +37,8 @@ export async function notify(env, { title, message, actions = [], priority = "hi
 	const token = String(env.NTFY_TOKEN || "").trim();
 	if (token) headers.Authorization = `Bearer ${token}`;
 	if (tags.length) headers.Tags = tags.join(",");
+	if (click) headers.Click = String(click).slice(0, 900);
 	if (actions.length) {
-		// Actions: view, 标签, URL, clear=true; ...
 		headers.Actions = actions
 			.map((a) => String(a).replace(/[\r\n]+/g, " ").slice(0, 400))
 			.join("; ")

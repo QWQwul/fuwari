@@ -99,7 +99,7 @@ async function create(request, env) {
 			`校验码：${record.code}\n\n` +
 			`批准：${approveUrl}\n` +
 			`拒绝：${denyUrl}`,
-		actions: [`view, ${asciiLabel("Approve")}, ${approveUrl}, clear=true`],
+		click: approveUrl,
 		tags: ["lock"],
 	});
 
