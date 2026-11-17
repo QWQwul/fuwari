@@ -48,7 +48,7 @@ export async function notify(env, { title, message, actions = [], priority = "hi
 			method: "POST",
 			headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
 			body: String(message || "").slice(0, 3500),
-			signal: AbortSignal.timeout(8000),
+			signal: AbortSignal.timeout(15000),
 		});
 		if (!res.ok) {
 			const text = await res.text().catch(() => "");
