@@ -33,8 +33,6 @@ export async function notify(env, { title, message, actions = [], priority = "hi
 	const headers = {
 		Title: rfc2047(String(title).slice(0, 120)),
 		Priority: priority,
-		"Cache": "no",
-		"Firebase": "no",
 	};
 	const token = String(env.NTFY_TOKEN || "").trim();
 	if (token) headers.Authorization = `Bearer ${token}`;
