@@ -1,8 +1,10 @@
 /**
  * ntfy 推送：把「登录待批准」通知发到管理员手机。
  *
- * 用 https://ntfy.sh 公共实例（主题名即密钥，128 位随机）。
- * 若以后自建 ntfy，只需改 NTFY_BASE 环境变量。
+ * 默认用自建的 fuwari-push（ntfy 兼容，ntfy.157478.xyz）：
+ *   NTFY_BASE  —— 服务地址
+ *   NTFY_TOPIC —— 主题名（即密钥）
+ *   NTFY_TOKEN —— 发布令牌，服务端校验 Authorization: Bearer
  */
 
 const enc = new TextEncoder();
@@ -34,6 +36,8 @@ export async function notify(env, { title, message, actions = [], priority = "hi
 		"Cache": "no",
 		"Firebase": "no",
 	};
+	const token = String(env.NTFY_TOKEN || "").trim();
+	if (token) headers.Authorization = `Bearer ${token}`;
 	if (tags.length) headers.Tags = tags.join(",");
 	if (actions.length) {
 		// Actions: view, 标签, URL, clear=true; ...
