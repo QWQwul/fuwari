@@ -219,7 +219,8 @@ document.querySelectorAll("button[data-act]").forEach(function(b){
         if(ok){
           var h=document.querySelector("h1"); if(h) h.textContent=(d.status==="approved"?"已批准登录":"已拒绝登录");
           var w=document.querySelector(".warn"); if(w) w.remove();
-          document.getElementById("msg").textContent=(d.status==="approved"?"可以关闭这个页面了喵":"已拒绝，若不是你本人操作请检查账号");
+          document.getElementById("msg").textContent=(d.status==="approved"?"正在返回后台…":"已拒绝，若不是你本人操作请检查账号");
+          if(d.status==="approved") setTimeout(function(){location.replace("/admin/");},600);
         }
       })
       .catch(function(){document.getElementById("msg").textContent="网络异常，请重试";b.disabled=false;});
