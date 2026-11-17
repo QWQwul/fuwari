@@ -1,12 +1,29 @@
 /**
- * /auth —— 后台登录页（口令 + TOTP）。
+ * /auth —— 后台登录弹窗：手机确认登录（ntfy 推送 → 手机点批准）。
  *
- * 流程：Decap CMS 打开本页弹窗 → 用户输入口令与 6 位动态码 →
- * POST /auth/verify 换取短时效会话令牌 → 通过 postMessage 把令牌交回后台。
- * 浏览器永远拿不到 GitHub PAT，PAT 只存在于 Pages 环境变量里。
+ * 流程：
+ *   1. 弹窗打开即创建「待批准登录」，服务器推送通知到手机；
+ *   2. 弹窗每 2 秒轮询状态；
+ *   3. 手机批准后凭 code 换取 8 小时会话令牌，postMessage 回后台。
+ *
+ * 紧急通道是另一个隐蔽路径，不在此页出现。
  */
 
+export async function onRequestGet() {
+	return new Response(PAGE, {
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"cache-control": "no-store",
+			"x-robots-tag": "noindex, nofollow",
+			"x-frame-options": "DENY",
+			"referrer-policy": "no-referrer",
+		},
+	});
+}
 
+export async function onRequest() {
+	return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET" } });
+}
 
 const PAGE = `<!doctype html>
 <html lang="zh-CN">
@@ -14,7 +31,7 @@ const PAGE = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="robots" content="noindex, nofollow" />
-<title>后台登录 · QWQ</title>
+<title>登录确认 · QWQ 后台</title>
 <style>
 :root{
   --hue:60;
@@ -43,157 +60,53 @@ const PAGE = `<!doctype html>
   }
 }
 *{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;
-  display:grid;
-  place-items:center;
-  padding:24px;
-  background:
-    radial-gradient(1100px 600px at 12% -10%, oklch(0.70 0.14 var(--hue) / 0.18), transparent 60%),
-    radial-gradient(900px 520px at 110% 110%, oklch(0.62 0.15 calc(var(--hue) + 18) / 0.14), transparent 55%),
-    var(--bg);
-  color:var(--fg);
-  font-family:"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
-  -webkit-font-smoothing:antialiased;
-}
-.card{
-  width:min(420px,100%);
-  background:var(--bg-soft);
-  border:1px solid var(--border);
-  border-radius:22px;
-  box-shadow:var(--shadow);
-  padding:30px 26px 24px;
-  position:relative;
-  overflow:hidden;
-}
-.card::before{
-  content:"";
-  position:absolute;inset:0 0 auto;height:3px;
-  background:linear-gradient(90deg,transparent,var(--primary),transparent);
-}
-.badge{
-  width:56px;height:56px;border-radius:16px;
-  background:oklch(0.70 0.14 var(--hue) / 0.14);
-  border:1px solid oklch(0.70 0.14 var(--hue) / 0.28);
-  display:grid;place-items:center;
-  font-size:26px;margin-bottom:16px;
-}
-h1{font-size:21px;margin:0 0 6px;letter-spacing:.2px}
-.sub{margin:0 0 22px;color:var(--fg-muted);font-size:13px;line-height:1.6}
-label{display:block;font-size:12.5px;color:var(--fg-muted);margin:14px 0 6px}
-input{
-  width:100%;height:46px;padding:0 14px;
-  border-radius:12px;border:1px solid var(--border);
-  background:var(--bg);color:var(--fg);font-size:15px;
-  transition:border-color .18s ease,box-shadow .18s ease;
-}
-input::placeholder{color:oklch(0.62 0.02 var(--hue) / 0.75)}
-input:focus{
-  outline:none;border-color:var(--primary);
-  box-shadow:0 0 0 4px oklch(0.70 0.14 var(--hue) / 0.16);
-}
-.row{display:flex;gap:10px}
-.row input{flex:1}
-button{
-  width:100%;height:46px;margin-top:22px;
-  border:0;border-radius:999px;cursor:pointer;
-  background:var(--primary);color:oklch(0.16 0.02 var(--hue));
-  font-size:15px;font-weight:600;letter-spacing:.3px;
-  transition:transform .16s ease,background .16s ease,opacity .16s ease;
-}
-button:hover:not(:disabled){background:var(--primary-strong);transform:translateY(-1px)}
-button:disabled{opacity:.55;cursor:progress;transform:none}
-.msg{margin-top:14px;font-size:13px;min-height:19px;color:var(--danger);line-height:1.5}
+body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:22px;background:
+  radial-gradient(120% 80% at 50% 0%, oklch(0.70 0.14 var(--hue) / 0.10), transparent 60%), var(--bg);
+  color:var(--fg);font-family:"PingFang SC","Noto Sans SC",system-ui,sans-serif}
+.card{width:min(400px,100%);background:var(--bg-soft);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);padding:26px 22px 20px;text-align:center}
+.badge{width:52px;height:52px;margin:0 auto 14px;border-radius:16px;display:grid;place-items:center;background:oklch(0.70 0.14 var(--hue) / 0.16);font-size:24px}
+h1{font-size:19px;margin:0 0 6px}
+.sub{margin:0 0 18px;color:var(--fg-muted);font-size:13px;line-height:1.6}
+.spinner{width:34px;height:34px;margin:6px auto 14px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--primary);animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:26px;letter-spacing:6px;margin:4px 0 12px;color:var(--primary-strong)}
+.meta{font-size:12.5px;color:var(--fg-muted);line-height:1.8;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 12px;text-align:left;word-break:break-all}
+.msg{margin-top:14px;font-size:13px;min-height:19px;color:var(--fg-muted);line-height:1.6}
+.msg.err{color:var(--danger)}
 .msg.ok{color:var(--primary-strong)}
-.hint{margin-top:18px;font-size:12px;color:var(--fg-muted);line-height:1.6}
-.hint a{color:var(--primary-strong)}
+button{width:100%;height:44px;margin-top:16px;border:0;border-radius:999px;cursor:pointer;background:var(--primary);color:oklch(0.16 0.02 var(--hue));font-size:15px;font-weight:600}
 button.ghost{background:transparent;color:var(--fg);border:1px solid var(--border);font-weight:500}
-button.ghost:hover:not(:disabled){background:var(--bg);border-color:var(--primary);transform:none}
-#after{display:none}
-#after.on{display:block}
-#after .sep{height:1px;background:var(--border);margin:22px 0 4px}
-#after p{margin:14px 0 0;font-size:13px;color:var(--fg-muted);line-height:1.6}
-details{margin-top:16px;font-size:12.5px;color:var(--fg-muted)}
-summary{cursor:pointer;user-select:none}
-details label{margin-top:10px}
+.hint{margin-top:16px;font-size:11.5px;color:var(--fg-muted);line-height:1.7}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <main class="card">
-  <div class="badge">✦</div>
-  <h1>内容后台</h1>
-  <p class="sub">请输入管理口令与动态验证码。这里是唯一入口，登录后浏览器只会拿到短时效会话令牌。</p>
-  <form id="f" autocomplete="off">
-    <label for="pw">管理口令</label>
-    <input id="pw" name="password" type="password" placeholder="口令" autocomplete="current-password" required />
-    <label for="code">动态验证码</label>
-    <div class="row">
-      <input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6 位数字" autocomplete="one-time-code" required />
-    </div>
-    <details id="recoveryBox">
-      <summary>手机丢失？使用恢复码</summary>
-      <label for="recovery">恢复码（一码一用，用后请轮换）</label>
-      <input id="recovery" name="recovery" type="text" placeholder="RECOVERY CODE" autocomplete="off" />
-    </details>
-    <button id="go" type="submit">登录</button>
-    <div class="msg" id="msg" role="status" aria-live="polite"></div>
-  </form>
-  <div class="sep" style="height:1px;background:var(--border);margin:22px 0 0"></div>
-  <button id="pk" type="button" class="ghost">用指纹 / 面容登录</button>
-  <p class="hint" style="margin-top:12px"><a href="/passkey">启用 / 重置指纹登录</a>（会离开当前登录窗口）</p>
-  <p class="hint">会话 8 小时自动失效。若连续输错会被临时限制，等待 10 分钟再试。</p>
+  <div class="badge" id="icon">✦</div>
+  <h1 id="title">等待手机确认</h1>
+  <p class="sub" id="sub">已向你的手机发送登录确认通知，请在手机上点「批准」。</p>
+  <div class="spinner" id="spin"></div>
+  <div class="code" id="code">······</div>
+  <div class="meta" id="meta">正在获取本机信息…</div>
+  <div class="msg" id="msg"></div>
+  <button id="retry" type="button" class="ghost" hidden>重新发送确认</button>
+  <p class="hint">如果不是你本人操作，请直接在手机上点「拒绝」。此窗口 3 分钟内未批准会自动失效。</p>
 </main>
 <script>
 (function(){
-  var form=document.getElementById("f"),msg=document.getElementById("msg"),btn=document.getElementById("go");
-  var opener=window.opener,handshaken=false;
-  var codeEl=document.getElementById("code"),pwEl=document.getElementById("pw"),rcEl=document.getElementById("recovery");
-  var pkBtn=document.getElementById("pk");
-  var supported=!!(window.PublicKeyCredential&&navigator.credentials&&navigator.credentials.get);
+  var opener=window.opener;
+  var titleEl=document.getElementById("title"),subEl=document.getElementById("sub");
+  var codeEl=document.getElementById("code"),metaEl=document.getElementById("meta");
+  var msgEl=document.getElementById("msg"),spinEl=document.getElementById("spin");
+  var retryEl=document.getElementById("retry"),iconEl=document.getElementById("icon");
+  var polling=null,pendingId=null,pendingCode=null,deadline=0;
 
+  function say(t,cls){msgEl.textContent=t||"";msgEl.className="msg"+(cls?" "+cls:"");}
   function send(m){if(opener&&!opener.closed){try{opener.postMessage(m,window.location.origin);}catch(e){}}}
-  function say(text,ok){msg.textContent=text||"";msg.className="msg"+(ok?" ok":"");}
+  function cleanup(){if(polling){clearTimeout(polling);polling=null;}}
 
-  window.addEventListener("message",function(ev){
-    if(ev.origin!==window.location.origin)return;
-    if(ev.data==="authorizing:github")handshaken=true;
-  });
-  var hsTries=0,hsTimer=setInterval(function(){
-    if(handshaken||hsTries++>20){clearInterval(hsTimer);return;}
-    send("authorizing:github");
-  },250);
-
-  function b64ToBuf(s){
-    var b64=s.split("-").join("+").split("_").join("/");
-    var pad=b64.length%4;if(pad)b64+=("====").slice(0,4-pad);
-    var raw=atob(b64),out=new Uint8Array(raw.length);
-    for(var i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);
-    return out.buffer;
-  }
-  function withTimeout(promise,ms,label){
-    return Promise.race([promise,new Promise(function(_,reject){
-      setTimeout(function(){reject(new Error(label+"超时（"+Math.round(ms/1000)+" 秒），请关掉系统弹窗后重试"));},ms);
-    })]);
-  }
-  function bufToB64(buf){
-    var u=new Uint8Array(buf),s="";
-    for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);
-    return btoa(s).split("+").join("-").split("/").join("_").split("=").join("");
-  }
-
-  // 令牌一到就立刻送回去，并在 3 秒内重复几次，保证 Sveltia / Decap 都能收到。
   function deliver(token){
     var payload="authorization:github:success:"+JSON.stringify({token:token,provider:"github"});
-    if(!opener||opener.closed){
-      btn.disabled=true;btn.textContent="已登录";
-      say("登录成功，请回到后台页面继续。",true);
-      var box=document.createElement("p");
-      box.className="hint";
-      box.innerHTML='<a href="/admin/">打开内容后台 →</a>';
-      form.appendChild(box);
-      return;
-    }
     send(payload);
     var tries=0;
     var t=setInterval(function(){
@@ -201,81 +114,77 @@ details label{margin-top:10px}
       if(!opener||opener.closed||tries>8){clearInterval(t);return;}
       send(payload);
     },350);
-    btn.disabled=true;btn.textContent="已登录，正在返回…";
-    say("登录成功，正在返回后台…",true);
-    setTimeout(function(){try{window.close();}catch(e){}},1500);
+    titleEl.textContent="已批准，正在进入后台";
+    subEl.textContent="登录成功，这个窗口会自动关闭。";
+    spinEl.hidden=true;iconEl.textContent="✓";codeEl.hidden=true;
+    say("登录成功",'ok');
+    setTimeout(function(){try{window.close();}catch(e){}},1200);
   }
 
-  form.addEventListener("submit",function(ev){
-    ev.preventDefault();
-    var password=pwEl.value,code=codeEl.value.trim(),recovery=rcEl.value.trim();
-    if(!password){say("请输入管理口令");return;}
-    if(!recovery&&!/^[0-9]{6}$/.test(code)){say("请输入 6 位动态验证码");return;}
-    btn.disabled=true;say("正在验证…",true);
-    fetch("/auth/verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:password,code:code,recovery:recovery||undefined})})
+  function fail(text){
+    cleanup();
+    spinEl.hidden=true;iconEl.textContent="!";
+    titleEl.textContent="登录未完成";
+    subEl.textContent="这次登录没有获得批准。";
+    say(text,'err');
+    retryEl.hidden=false;
+  }
+
+  function start(){
+    cleanup();
+    retryEl.hidden=true;spinEl.hidden=false;iconEl.textContent="✦";codeEl.hidden=false;
+    titleEl.textContent="等待手机确认";
+    subEl.textContent="已向你的手机发送登录确认通知，请在手机上点「批准」。";
+    say("");
+    fetch("/auth/pending",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})
       .then(function(r){return r.json().catch(function(){return {ok:false,error:"服务返回异常"};});})
-      .then(function(data){
-        if(data&&data.ok&&data.token){deliver(data.token);return;}
-        btn.disabled=false;btn.textContent="登录";say((data&&data.error)||"登录失败，请重试");
-      })
-      .catch(function(){btn.disabled=false;btn.textContent="登录";say("网络异常，请重试");});
-  });
-
-  pkBtn.addEventListener("click",function(){
-    if(!supported){say("这台浏览器不支持指纹登录");return;}
-    pkBtn.disabled=true;say("正在唤起系统指纹…",true);
-    fetch("/auth/webauthn/login-options",{method:"POST",headers:{"content-type":"application/json"},body:"{}"})
-      .then(function(r){return r.json();})
-      .then(function(opt){
-        if(!opt||!opt.ok)throw new Error((opt&&opt.error)||"尚未注册指纹，请先到 /passkey 启用");
-        var pk=opt.publicKey;
-        pk.challenge=b64ToBuf(pk.challenge);
-        pk.allowCredentials=(pk.allowCredentials||[]).map(function(c){return {type:c.type,id:b64ToBuf(c.id)};});
-        return withTimeout(navigator.credentials.get({publicKey:pk}),120000,"系统指纹").then(function(cred){
-          if(!cred)throw new Error("未返回凭据");
-          return fetch("/auth/webauthn/login-verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({challengeId:opt.challengeId,credentialId:bufToB64(cred.rawId),authenticatorData:bufToB64(cred.response.authenticatorData),clientDataJSON:bufToB64(cred.response.clientDataJSON),signature:bufToB64(cred.response.signature)})});
+      .then(function(d){
+        if(!d||!d.ok)throw new Error((d&&d.error)||"无法创建登录请求");
+        pendingId=d.id;pendingCode=d.code;
+        codeEl.textContent=d.code;
+        metaEl.innerHTML="";
+        var lines=[["设备",d.device||"未知"],["IP",d.ip||"未知"],["发起时间",d.time||""]];
+        lines.forEach(function(p){
+          var row=document.createElement("div");
+          row.textContent=p[0]+"：" + p[1];
+          metaEl.appendChild(row);
         });
+        if(d.push&&d.push.ok===false){say("通知发送失败："+(d.push.error||"未知错误")+"，请稍后重试",'err');}
+        deadline=Date.now()+120000;
+        poll();
       })
-      .then(function(r){return r.json();})
-      .then(function(res){
-        pkBtn.disabled=false;
-        if(res&&res.ok&&res.token){deliver(res.token);}
-        else{throw new Error((res&&res.error)||"指纹登录失败");}
-      })
-      .catch(function(e){
-        pkBtn.disabled=false;
-        var name=(e&&e.name&&e.name!=="Error")?e.name+"：":"";
-        say(name+((e&&e.message)||"指纹登录失败"));
-      });
-  });
-
-  if(supported){
-    fetch("/auth/webauthn/status").then(function(r){return r.json();}).then(function(st){
-      if(!st||!st.ok||!st.count){pkBtn.style.display="none";}
-    }).catch(function(){});
-  }else{
-    pkBtn.style.display="none";
+      .catch(function(e){fail((e&&e.message)||"网络异常");});
   }
 
-  pwEl.focus();
+  function poll(){
+    if(!pendingId)return;
+    if(Date.now()>deadline){fail("等待超时，请重新发送确认");return;}
+    polling=setTimeout(function(){
+      fetch("/auth/pending/"+pendingId).then(function(r){return r.json();}).then(function(d){
+        if(!d||!d.ok){fail((d&&d.error)||"查询失败");return;}
+        if(d.status==="approved"){
+          titleEl.textContent="手机已批准";
+          subEl.textContent="正在换取登录令牌…";
+          spinEl.hidden=true;iconEl.textContent="✓";
+          fetch("/auth/pending/"+pendingId+"/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({code:pendingCode})})
+            .then(function(r){return r.json();})
+            .then(function(s){
+              if(s&&s.ok&&s.token){deliver(s.token);}
+              else{fail((s&&s.error)||"令牌签发失败");}
+            })
+            .catch(function(){fail("令牌签发失败，请重试");});
+          return;
+        }
+        if(d.status==="denied"){fail("这次登录被拒绝");return;}
+        if(d.status==="expired"){fail("请求已过期，请重新发送");return;}
+        poll();
+      }).catch(function(){poll();});
+    },2000);
+  }
+
+  retryEl.addEventListener("click",start);
+  start();
 })();
 </script>
 </body>
 </html>`;
-
-
-export async function onRequestGet() {
-	return new Response(PAGE, {
-		headers: {
-			"content-type": "text/html; charset=utf-8",
-			"cache-control": "no-store",
-			"x-robots-tag": "noindex, nofollow",
-			"x-frame-options": "DENY",
-			"referrer-policy": "no-referrer",
-		},
-	});
-}
-
-export async function onRequest() {
-	return new Response("Method Not Allowed", { status: 405, headers: { allow: "GET" } });
-}
