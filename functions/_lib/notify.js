@@ -12,9 +12,8 @@ function rfc2047(text) {
 	let bin = "";
 	for (const b of bytes) bin += String.fromCharCode(b);
 	const b64 = btoa(bin);
-	// 每 45 字节折行，符合 RFC 2047 单行长度限制。
-	const chunks = b64.match(/.{1,60}/g) || [b64];
-	return chunks.map((c) => `=?UTF-8?B?${c}?=`).join("\r\n ");
+	const chunks = b64.match(/.{1,75}/g) || [b64];
+	return chunks.map((c) => `=?UTF-8?B?${c}?=`).join(" ");
 }
 
 export function ntfyBase(env) {
