@@ -182,8 +182,20 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--borde
     },2000);
   }
 
-  retryEl.addEventListener("click",start);
-  start();
+  // 手机批准页会把一次性令牌写进 localStorage，这里直接用它完成握手喵
+  var boot=null;
+  try{boot=localStorage.getItem("fw_token_bootstrap");}catch(e){}
+  if(boot){
+    try{localStorage.removeItem("fw_token_bootstrap");}catch(e){}
+    titleEl.textContent="正在进入后台";
+    subEl.textContent="使用刚才手机批准的登录…";
+    spinEl.hidden=false;
+    send("authorizing:github");
+    setTimeout(function(){deliver(boot);},250);
+  }else{
+    retryEl.addEventListener("click",start);
+    start();
+  }
 })();
 </script>
 </body>

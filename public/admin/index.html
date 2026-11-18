@@ -56,6 +56,25 @@
             splash.innerHTML = "<p>后台加载失败，请检查网络后刷新重试。</p>";
           }
         }, 200);
+
+        // 手机批准后会带 ?sso=1 回来：自动点「登录」，弹出 /auth 用一次性令牌完成
+        if (/[?&]sso=1/.test(location.search)) {
+          var tries = 0;
+          var clicker = setInterval(function () {
+            tries++;
+            var btns = document.querySelectorAll("button, a");
+            for (var i = 0; i < btns.length; i++) {
+              var el = btns[i];
+              var txt = (el.textContent || "").trim();
+              if (/^(登录|登入|Sign in|Log in|Login)$/i.test(txt) && !el.disabled) {
+                el.click();
+                clearInterval(clicker);
+                return;
+              }
+            }
+            if (tries > 60) clearInterval(clicker);
+          }, 500);
+        }
       })();
     </script>
   </body>

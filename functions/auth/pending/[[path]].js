@@ -145,10 +145,18 @@ async function session(request, env, id) {
 		/* ignore */
 	}
 	const keyboard = body && typeof body.code === "string" ? body.code : "";
+	const sig = body && typeof body.sig === "string" ? body.sig : new URL(request.url).searchParams.get("sig") || "";
 	const record = await getPending(env.CMS_KV, id);
 	if (!record) return json({ ok: false, error: "请求不存在或已过期" }, 404);
 	if (record.status !== "approved") return json({ ok: false, error: "尚未获得手机批准" }, 403);
-	if (!keyboard || keyboard !== record.code) return json({ ok: false, error: "校验码不匹配" }, 403);
+	if (sig) {
+		// 手机批准页拿着签名直接换令牌（同一台手机一次性把后台登进去）
+		if (!(await verifyPendingSig(env.SESSION_SECRET, id, "approve", sig))) {
+			return json({ ok: false, error: "签名无效" }, 403);
+		}
+	} else if (!keyboard || keyboard !== record.code) {
+		return json({ ok: false, error: "校验码不匹配" }, 403);
+	}
 
 	await setPendingStatus(env.CMS_KV, record, "used", "浏览器换取令牌");
 	const { token, expiresAt } = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
@@ -220,14 +228,18 @@ document.querySelectorAll("button[data-act]").forEach(function(b){
           var h=document.querySelector("h1"); if(h) h.textContent=(d.status==="approved"?"已批准登录":"已拒绝登录");
           var w=document.querySelector(".warn"); if(w) w.remove();
           if(d.status==="approved"){
-            document.getElementById("msg").textContent="已批准，正在关闭喵…";
-            setTimeout(function(){
-              try{window.close();}catch(e){}
-              setTimeout(function(){
-                var m=document.getElementById("msg");
-                if(m) m.innerHTML="已批准，可以切回后台标签页了喵 · <a href=\"/admin/\" style=\"color:inherit\">打开后台</a>";
-              },400);
-            },500);
+            document.getElementById("msg").textContent="已批准，正在进入后台喵…";
+            fetch(base+"/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({sig:b.dataset.sig})})
+              .then(function(r){return r.json();})
+              .then(function(s){
+                if(s&&s.ok&&s.token){
+                  try{localStorage.setItem("fw_token_bootstrap",s.token);}catch(e){}
+                  location.replace("/admin/?sso=1");
+                }else{
+                  document.getElementById("msg").textContent="令牌签发失败："+((s&&s.error)||"未知错误");
+                }
+              })
+              .catch(function(){document.getElementById("msg").textContent="网络异常，请在后台里重新登录";});
           }else{
             document.getElementById("msg").textContent="已拒绝，若不是你本人操作请检查账号";
           }
