@@ -27,7 +27,7 @@ import { pluginCustomCopyButton } from "./src/plugins/expressive-code/custom-cop
 
 // https://astro.build/config
 export default defineConfig({
-	site: "https://qwqads.dpdns.org/",
+	site: "https://ai.qwqads.dpdns.org/",
 	base: "/",
 	trailingSlash: "always",
 	integrations: [

@@ -15,11 +15,11 @@ const TIMEOUT_MS = 20000;
 
 // 运营商会对「Cloudflare 边缘 + 443」做 TLS 重置，手机端改用 8443 端口访问，
 // 所以 CORS 不能写死带端口的完整 origin，只按主机名放行、并回显实际 Origin 喵。
-const ALLOWED_HOSTS = new Set(["qwqads.dpdns.org", "ai.157478.xyz", "fuwari-git.pages.dev", "localhost", "127.0.0.1"]);
+const ALLOWED_HOSTS = new Set(["ai.qwqads.dpdns.org", "qwqads.dpdns.org", "ai.157478.xyz", "fuwari-git.pages.dev", "localhost", "127.0.0.1"]);
 
 function corsFor(request) {
 	const origin = request?.headers?.get("origin") || "";
-	let allowed = "https://qwqads.dpdns.org";
+	let allowed = "https://ai.qwqads.dpdns.org";
 	if (origin) {
 		try {
 			const { protocol, hostname } = new URL(origin);

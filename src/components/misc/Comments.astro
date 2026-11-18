@@ -2,7 +2,7 @@
 import { commentConfig } from "../../config";
 
 const giscus = commentConfig.giscus;
-const siteBase = (Astro.site ? String(Astro.site) : "https://qwqads.dpdns.org/").replace(/\/$/, "");
+const siteBase = (Astro.site ? String(Astro.site) : "https://ai.qwqads.dpdns.org/").replace(/\/$/, "");
 const themeLight = `${siteBase}/giscus/light.css`;
 const themeDark = `${siteBase}/giscus/dark.css`;
 const enabled = commentConfig.enable && commentConfig.system === "giscus";
