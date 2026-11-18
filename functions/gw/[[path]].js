@@ -106,8 +106,10 @@ export async function onRequest({ request, env, params }) {
 	if (!session) return json({ message: "会话已失效，请重新登录后台" }, 401);
 
 	const segments = Array.isArray(params.path) ? params.path : params.path ? [params.path] : [];
-	const path = segments.map((s) => String(s)).join("/");
+	let path = segments.map((s) => String(s)).join("/");
 	if (!path) return json({ message: "缺少接口路径" }, 400);
+	// Sveltia 在配置 api_root 时会走 GitHub Enterprise 风格路径（api/v3/…），这里剥掉前缀喵
+	path = path.replace(/^api\/v3\/?/i, "");
 	if (!isAllowedPath(path)) return json({ message: `接口不允许：${path}` }, 403);
 
 	const method = request.method.toUpperCase();
