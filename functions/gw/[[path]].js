@@ -13,17 +13,34 @@ const REPO = "fuwari";
 const MAX_BODY = 12 * 1024 * 1024;
 const TIMEOUT_MS = 20000;
 
-const CORS = {
-	"access-control-allow-origin": "https://ai.157478.xyz",
-	"access-control-allow-headers": "authorization, content-type, accept, x-github-api-version",
-	"access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-	"access-control-expose-headers": "link, x-ratelimit-remaining",
-};
+// 运营商会对「Cloudflare 边缘 + 443」做 TLS 重置，手机端改用 8443 端口访问，
+// 所以 CORS 不能写死带端口的完整 origin，只按主机名放行、并回显实际 Origin 喵。
+const ALLOWED_HOSTS = new Set(["ai.157478.xyz", "fuwari-git.pages.dev", "localhost", "127.0.0.1"]);
 
-const json = (body, status = 200, extra = {}) =>
+function corsFor(request) {
+	const origin = request?.headers?.get("origin") || "";
+	let allowed = "https://ai.157478.xyz";
+	if (origin) {
+		try {
+			const { protocol, hostname } = new URL(origin);
+			if ((protocol === "https:" || protocol === "http:") && ALLOWED_HOSTS.has(hostname)) allowed = origin;
+		} catch {
+			/* 非法 Origin 就退回默认值 */
+		}
+	}
+	return {
+		"access-control-allow-origin": allowed,
+		"access-control-allow-headers": "authorization, content-type, accept, x-github-api-version",
+		"access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+		"access-control-expose-headers": "link, x-ratelimit-remaining",
+		vary: "origin",
+	};
+}
+
+const json = (body, status = 200, extra = {}, cors = corsFor(null)) =>
 	new Response(JSON.stringify(body), {
 		status,
-		headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...CORS, ...extra },
+		headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...cors, ...extra },
 	});
 
 /** 只允许 CMS 真正需要的接口，避免会话令牌被当成万能 GitHub 凭据。 */
@@ -90,10 +107,11 @@ async function callGitHub(path, request, env) {
 }
 
 export async function onRequest({ request, env, params }) {
+	const CORS = corsFor(request);
 	if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
-	if (!env.SESSION_SECRET) return json({ message: "网关尚未配置 SESSION_SECRET" }, 503);
-	if (!env.GITHUB_API_TOKEN) return json({ message: "网关尚未配置 GITHUB_API_TOKEN" }, 503);
+	if (!env.SESSION_SECRET) return json({ message: "网关尚未配置 SESSION_SECRET" }, 503, {}, CORS);
+	if (!env.GITHUB_API_TOKEN) return json({ message: "网关尚未配置 GITHUB_API_TOKEN" }, 503, {}, CORS);
 
 	const token = readSession(request);
 	let session = null;
@@ -104,19 +122,19 @@ export async function onRequest({ request, env, params }) {
 			session = null;
 		}
 	}
-	if (!session) return json({ message: "会话已失效，请重新登录后台" }, 401);
+	if (!session) return json({ message: "会话已失效，请重新登录后台" }, 401, {}, CORS);
 
 	const segments = Array.isArray(params.path) ? params.path : params.path ? [params.path] : [];
 	let path = segments.map((s) => String(s)).join("/");
-	if (!path) return json({ message: "缺少接口路径" }, 400);
+	if (!path) return json({ message: "缺少接口路径" }, 400, {}, CORS);
 	// Sveltia 在配置 api_root 时会走 GitHub Enterprise 风格路径（api/v3/…），这里剥掉前缀喵
 	path = path.replace(/^api\/v3\/?/i, "");
 	path = path.replace(/^api\/graphql$/i, "graphql");
-	if (!isAllowedPath(path)) return json({ message: `接口不允许：${path}` }, 403);
+	if (!isAllowedPath(path)) return json({ message: `接口不允许：${path}` }, 403, {}, CORS);
 
 	const method = request.method.toUpperCase();
 	if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) {
-		return json({ message: "方法不允许" }, 405);
+		return json({ message: "方法不允许" }, 405, {}, CORS);
 	}
 
 	let response;
@@ -129,7 +147,7 @@ export async function onRequest({ request, env, params }) {
 	} catch (error) {
 		const status = error?.status === 413 ? 413 : 502;
 		const message = status === 413 ? "上传内容过大" : "无法连接 GitHub API，请稍后重试";
-		return json({ message }, status);
+		return json({ message }, status, {}, CORS);
 	}
 
 	const headers = new Headers();
@@ -152,6 +170,8 @@ export async function onRequest({ request, env, params }) {
 				github: { status: response.status, detail: detail.slice(0, 400) },
 			},
 			response.status === 401 ? 502 : 403,
+			{},
+			CORS,
 		);
 	}
 
