@@ -43,6 +43,7 @@ const ALLOWED_SUBPATHS = [
 export function isAllowedPath(path) {
 	if (path === "user") return true;
 	if (path === "rate_limit") return true;
+	if (path === "graphql") return true;
 	const lower = path.toLowerCase();
 	const prefix = `repos/${OWNER}/${REPO}`.toLowerCase();
 	if (lower === prefix) return true;
@@ -110,6 +111,7 @@ export async function onRequest({ request, env, params }) {
 	if (!path) return json({ message: "缺少接口路径" }, 400);
 	// Sveltia 在配置 api_root 时会走 GitHub Enterprise 风格路径（api/v3/…），这里剥掉前缀喵
 	path = path.replace(/^api\/v3\/?/i, "");
+	path = path.replace(/^api\/graphql$/i, "graphql");
 	if (!isAllowedPath(path)) return json({ message: `接口不允许：${path}` }, 403);
 
 	const method = request.method.toUpperCase();
