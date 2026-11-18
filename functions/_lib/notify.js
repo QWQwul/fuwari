@@ -9,6 +9,7 @@
  * 备用通道：手机所在网络有时会 reset 到 Cloudflare 的 TCP 443，
  * 自建服务收不到通知，所以同一条通知也会发到 NTFY_FALLBACK_BASE 一份。
  *   NTFY_FALLBACK_BASE  —— 默认 https://ntfy.envs.net（公开服务，无需令牌）
+ *   NTFY_FALLBACK_TOPIC —— 备用主题（默认同主主题；公开服务建议单独用长随机名）
  *   NTFY_FALLBACK_TOKEN —— 备用服务发布令牌（公开服务留空即可）
  */
 
@@ -104,7 +105,8 @@ export async function notify(env, { title, message, click = "", actions = [], pr
 	// 所以不是「主失败才补发」，而是两条通道都发，手机哪条通就收哪条喵。
 	const jobs = [send(ntfyBase(env), token, topic, headers, body)];
 	if (fallbackBase && fallbackBase !== ntfyBase(env)) {
-		const payload = { topic, title: String(title).slice(0, 120), message: body, priority: 4 };
+		const fallbackTopic = String(env.NTFY_FALLBACK_TOPIC || topic).trim();
+		const payload = { topic: fallbackTopic, title: String(title).slice(0, 120), message: body, priority: 4 };
 		if (click) payload.click = String(click).slice(0, 900);
 		if (tags.length) payload.tags = tags;
 		jobs.push(sendJson(fallbackBase, fallbackToken, payload));
