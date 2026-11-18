@@ -16,6 +16,10 @@ site_url: https://ai.qwqads.dpdns.org
 display_url: https://ai.qwqads.dpdns.org
 logo_url: https://ai.qwqads.dpdns.org/favicon/favicon-light-192.png
 
+# 关掉「部署状态」轮询：后台不再每 5 秒去查 Cloudflare Pages 构建状态，
+# 保存后立即结束，避免一直停在 Saving… 喵
+show_preview_links: false
+
 media_folder: public/uploads
 public_folder: /uploads
 
@@ -28,6 +32,10 @@ collections:
     delete: true
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     identifier_field: title
+    # 允许读取子目录里的文章（比如 guide/index.md），但不在界面上显示文件夹喵
+    nested:
+      depth: 2
+      subfolders: false
     summary: "{{title}} · {{published}}"
     sortable_fields: [published, title]
     fields:

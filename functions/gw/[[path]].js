@@ -11,7 +11,9 @@ import { verifySession } from "../_lib/security.js";
 const OWNER = "QWQwul";
 const REPO = "fuwari";
 const MAX_BODY = 12 * 1024 * 1024;
-const TIMEOUT_MS = 20000;
+// GitHub 偶尔会慢到 40 秒以上（实测有过 44.5s 的一次上传），
+// 20 秒会直接把后台保存打断成「一直转圈」，放宽到 60 秒喵。
+const TIMEOUT_MS = 60000;
 
 // 运营商会对「Cloudflare 边缘 + 443」做 TLS 重置，手机端改用 8443 端口访问，
 // 所以 CORS 不能写死带端口的完整 origin，只按主机名放行、并回显实际 Origin 喵。
