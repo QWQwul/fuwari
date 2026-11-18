@@ -19,7 +19,7 @@ const ALLOWED_HOSTS = new Set(["qwqads.dpdns.org", "ai.157478.xyz", "fuwari-git.
 
 function corsFor(request) {
 	const origin = request?.headers?.get("origin") || "";
-	let allowed = "https://ai.157478.xyz";
+	let allowed = "https://qwqads.dpdns.org";
 	if (origin) {
 		try {
 			const { protocol, hostname } = new URL(origin);
