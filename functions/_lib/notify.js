@@ -6,8 +6,8 @@
  *   NTFY_TOPIC —— 主题名（即密钥）
  *   NTFY_TOKEN —— 发布令牌，服务端校验 Authorization: Bearer
  *
- * 备用通道（可选）：手机所在网络有时会 reset 到 Cloudflare 的 TCP 443，
- * 那时自建服务推不进去，就顺带往 NTFY_FALLBACK_BASE 也发一份。
+ * 备用通道：手机所在网络有时会 reset 到 Cloudflare 的 TCP 443，
+ * 自建服务收不到通知，所以同一条通知也会发到 NTFY_FALLBACK_BASE 一份。
  *   NTFY_FALLBACK_BASE  —— 默认 https://ntfy.envs.net（公开服务，无需令牌）
  *   NTFY_FALLBACK_TOKEN —— 备用服务发布令牌（公开服务留空即可）
  */
@@ -73,15 +73,26 @@ export async function notify(env, { title, message, click = "", actions = [], pr
 	}
 
 	const body = String(message || "").slice(0, 3500);
-	const primary = await send(ntfyBase(env), String(env.NTFY_TOKEN || "").trim(), topic, headers, body);
-	if (primary.ok) return { ...primary, via: "primary" };
-
 	const fallbackBase = String(env.NTFY_FALLBACK_BASE || "https://ntfy.envs.net").trim().replace(/\/+$/, "");
-	if (!fallbackBase) return { ...primary, via: "primary" };
+	const token = String(env.NTFY_TOKEN || "").trim();
+	const fallbackToken = String(env.NTFY_FALLBACK_TOKEN || "").trim();
 
-	const fallback = await send(fallbackBase, String(env.NTFY_FALLBACK_TOKEN || "").trim(), topic, headers, body);
-	if (fallback.ok) return { ...fallback, via: "fallback" };
-	return { ...primary, via: "primary", error: `${primary.error || primary.status} / fallback: ${fallback.error || fallback.status}` };
+	// 手机所在网络可能连不上自建服务（TCP 被重置），但服务端推得进去，
+	// 所以不是「主失败才补发」，而是两条通道都发，手机哪条通就收哪条喵。
+	const jobs = [send(ntfyBase(env), token, topic, headers, body)];
+	if (fallbackBase && fallbackBase !== ntfyBase(env)) {
+		jobs.push(send(fallbackBase, fallbackToken, topic, headers, body));
+	}
+	const results = await Promise.all(jobs);
+	const primary = results[0];
+	const fallback = results[1];
+	const ok = results.some((r) => r.ok);
+	return {
+		ok,
+		status: primary.status,
+		via: [primary.ok ? "primary" : "", fallback && fallback.ok ? "fallback" : ""].filter(Boolean).join("+") || "none",
+		error: ok ? undefined : `${primary.error || primary.status}${fallback ? ` / fallback: ${fallback.error || fallback.status}` : ""}`,
+	};
 }
 
 /** ASCII 标签安全化：非 ASCII 会破坏 HTTP 头。 */
