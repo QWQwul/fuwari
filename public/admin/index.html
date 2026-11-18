@@ -33,6 +33,18 @@
       #admin-splash.is-hidden { opacity: 0; pointer-events: none; }
       @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
       @media (prefers-reduced-motion: reduce) { #admin-splash img { animation: none } }
+      #sso-bar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 9998;
+        display: flex; flex-direction: column; gap: 10px; align-items: stretch;
+        padding: 16px 18px calc(16px + env(safe-area-inset-bottom));
+        background: var(--splash-bg); border-top: 1px solid rgba(140, 120, 80, .25);
+        color: var(--splash-fg); font: 14px/1.5 Roboto, "Noto Sans SC", system-ui, sans-serif;
+      }
+      #sso-bar p { margin: 0; text-align: center; }
+      #sso-bar button {
+        height: 46px; border: 0; border-radius: 999px; font-size: 15px; font-weight: 600;
+        background: oklch(0.70 0.14 60); color: #201a10;
+      }
     </style>
   </head>
   <body>
@@ -57,23 +69,27 @@
           }
         }, 200);
 
-        // 手机批准后会带 ?sso=1 回来：自动点「登录」，弹出 /auth 用一次性令牌完成
+        // 手机批准后带 ?sso=1 回来：给一个按钮（必须有真实点击，浏览器才允许弹窗）
         if (/[?&]sso=1/.test(location.search)) {
-          var tries = 0;
-          var clicker = setInterval(function () {
-            tries++;
+          var bar = document.createElement("div");
+          bar.id = "sso-bar";
+          bar.innerHTML =
+            '<p>手机已批准，点一下继续进入后台</p><button type="button">继续进入后台</button>';
+          document.body.appendChild(bar);
+          var go = function () {
             var btns = document.querySelectorAll("button, a");
             for (var i = 0; i < btns.length; i++) {
               var el = btns[i];
               var txt = (el.textContent || "").trim();
               if (/登录|登入|sign\s*in|log\s*in/i.test(txt) && !el.disabled) {
                 el.click();
-                clearInterval(clicker);
-                return;
+                if (bar && bar.parentNode) bar.remove();
+                return true;
               }
             }
-            if (tries > 60) clearInterval(clicker);
-          }, 500);
+            return false;
+          };
+          bar.querySelector("button").addEventListener("click", go);
         }
       })();
     </script>
