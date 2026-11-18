@@ -5,6 +5,11 @@
  *   NTFY_BASE  —— 服务地址
  *   NTFY_TOPIC —— 主题名（即密钥）
  *   NTFY_TOKEN —— 发布令牌，服务端校验 Authorization: Bearer
+ *
+ * 备用通道（可选）：手机所在网络有时会 reset 到 Cloudflare 的 TCP 443，
+ * 那时自建服务推不进去，就顺带往 NTFY_FALLBACK_BASE 也发一份。
+ *   NTFY_FALLBACK_BASE  —— 默认 https://ntfy.envs.net（公开服务，无需令牌）
+ *   NTFY_FALLBACK_TOKEN —— 备用服务发布令牌（公开服务留空即可）
  */
 
 const enc = new TextEncoder();
@@ -26,30 +31,12 @@ export function ntfyBase(env) {
  * 发送一条通知。所有取值都会做长度限制，避免头部过长被拒。
  * @returns {Promise<{ok:boolean, status:number, error?:string}>}
  */
-export async function notify(env, { title, message, click = "", actions = [], priority = "high", tags = [] }) {
-	const topic = String(env.NTFY_TOPIC || "").trim();
-	if (!topic) return { ok: false, status: 0, error: "未配置 NTFY_TOPIC" };
-
-	const headers = {
-		Title: rfc2047(String(title).slice(0, 120)),
-		Priority: priority,
-	};
-	const token = String(env.NTFY_TOKEN || "").trim();
-	if (token) headers.Authorization = `Bearer ${token}`;
-	if (tags.length) headers.Tags = tags.join(",");
-	if (click) headers.Click = String(click).slice(0, 900);
-	if (actions.length) {
-		headers.Actions = actions
-			.map((a) => String(a).replace(/[\r\n]+/g, " ").slice(0, 400))
-			.join("; ")
-			.slice(0, 3000);
-	}
-
+async function send(base, token, topic, headers, body) {
 	try {
-		const res = await fetch(`${ntfyBase(env)}/${encodeURIComponent(topic)}`, {
+		const res = await fetch(`${base}/${encodeURIComponent(topic)}`, {
 			method: "POST",
-			headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
-			body: String(message || "").slice(0, 3500),
+			headers: token ? { ...headers, Authorization: `Bearer ${token}` } : headers,
+			body,
 			signal: AbortSignal.timeout(15000),
 		});
 		if (!res.ok) {
@@ -60,6 +47,41 @@ export async function notify(env, { title, message, click = "", actions = [], pr
 	} catch (error) {
 		return { ok: false, status: 0, error: (error && error.message) || "网络错误" };
 	}
+}
+
+/**
+ * 发送一条通知。所有取值都会做长度限制，避免头部过长被拒。
+ * 主通道失败时自动补发到备用通道，返回里带 via 说明走的是哪条。
+ * @returns {Promise<{ok:boolean, status:number, via?:string, error?:string}>}
+ */
+export async function notify(env, { title, message, click = "", actions = [], priority = "high", tags = [] }) {
+	const topic = String(env.NTFY_TOPIC || "").trim();
+	if (!topic) return { ok: false, status: 0, error: "未配置 NTFY_TOPIC" };
+
+	const headers = {
+		Title: rfc2047(String(title).slice(0, 120)),
+		Priority: priority,
+		"Content-Type": "text/plain; charset=utf-8",
+	};
+	if (tags.length) headers.Tags = tags.join(",");
+	if (click) headers.Click = String(click).slice(0, 900);
+	if (actions.length) {
+		headers.Actions = actions
+			.map((a) => String(a).replace(/[\r\n]+/g, " ").slice(0, 400))
+			.join("; ")
+			.slice(0, 3000);
+	}
+
+	const body = String(message || "").slice(0, 3500);
+	const primary = await send(ntfyBase(env), String(env.NTFY_TOKEN || "").trim(), topic, headers, body);
+	if (primary.ok) return { ...primary, via: "primary" };
+
+	const fallbackBase = String(env.NTFY_FALLBACK_BASE || "https://ntfy.envs.net").trim().replace(/\/+$/, "");
+	if (!fallbackBase) return { ...primary, via: "primary" };
+
+	const fallback = await send(fallbackBase, String(env.NTFY_FALLBACK_TOKEN || "").trim(), topic, headers, body);
+	if (fallback.ok) return { ...fallback, via: "fallback" };
+	return { ...primary, via: "primary", error: `${primary.error || primary.status} / fallback: ${fallback.error || fallback.status}` };
 }
 
 /** ASCII 标签安全化：非 ASCII 会破坏 HTTP 头。 */
