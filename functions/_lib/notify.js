@@ -50,6 +50,29 @@ async function send(base, token, topic, headers, body) {
 }
 
 /**
+ * 公开 ntfy 服务用 JSON 发布，标题能直接放 UTF-8，不受 HTTP 头编码限制喵。
+ */
+async function sendJson(base, token, payload) {
+	try {
+		const headers = { "content-type": "application/json" };
+		if (token) headers.Authorization = `Bearer ${token}`;
+		const res = await fetch(`${base}/`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify(payload),
+			signal: AbortSignal.timeout(15000),
+		});
+		if (!res.ok) {
+			const text = await res.text().catch(() => "");
+			return { ok: false, status: res.status, error: text.slice(0, 200) };
+		}
+		return { ok: true, status: res.status };
+	} catch (error) {
+		return { ok: false, status: 0, error: (error && error.message) || "网络错误" };
+	}
+}
+
+/**
  * 发送一条通知。所有取值都会做长度限制，避免头部过长被拒。
  * 主通道失败时自动补发到备用通道，返回里带 via 说明走的是哪条。
  * @returns {Promise<{ok:boolean, status:number, via?:string, error?:string}>}
@@ -81,7 +104,10 @@ export async function notify(env, { title, message, click = "", actions = [], pr
 	// 所以不是「主失败才补发」，而是两条通道都发，手机哪条通就收哪条喵。
 	const jobs = [send(ntfyBase(env), token, topic, headers, body)];
 	if (fallbackBase && fallbackBase !== ntfyBase(env)) {
-		jobs.push(send(fallbackBase, fallbackToken, topic, headers, body));
+		const payload = { topic, title: String(title).slice(0, 120), message: body, priority: 4 };
+		if (click) payload.click = String(click).slice(0, 900);
+		if (tags.length) payload.tags = tags;
+		jobs.push(sendJson(fallbackBase, fallbackToken, payload));
 	}
 	const results = await Promise.all(jobs);
 	const primary = results[0];
