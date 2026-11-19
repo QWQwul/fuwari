@@ -1,10 +1,15 @@
 ---
 title: 在文章中嵌入视频
-published: 2023-08-01
 description: 本文演示如何在博客文章中嵌入视频。
-tags: [示例, 视频]
+published: 2023-08-01
+updated: ''
+image: ''
+tags:
+  - 示例
+  - 视频
 category: 示例
 draft: false
+pinned: true
 ---
 
 只需从 YouTube 或其他平台复制嵌入代码，粘贴到 markdown 文件里即可。
