@@ -30,7 +30,7 @@ const allTags = [category, ...tags].filter(Boolean) as string[];
 ---
 
 <article
-	class="card-base group relative flex w-full flex-col overflow-hidden rounded-[var(--radius-large)]"
+	class="card-base group relative flex w-full flex-col overflow-hidden rounded-[var(--radius-large)] border border-black/[0.06] dark:border-white/10"
 	style={style}
 	data-tags={allTags.join(",")}
 	data-search={`${title} ${description} ${allTags.join(" ")}`.toLowerCase()}

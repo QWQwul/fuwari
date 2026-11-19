@@ -37,10 +37,6 @@ collections:
     delete: true
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     identifier_field: title
-    # 允许读取子目录里的文章（比如 guide/index.md 这种目录型文章）喵
-    nested:
-      depth: 2
-      subfolders: true
     summary: "{{title}} · {{published}}"
     # 默认按「置顶」倒序：true 在前，置顶文章永远排在列表最上面喵
     sortable_fields:
