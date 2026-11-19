@@ -81,6 +81,15 @@ function readSession(request) {
 	return match ? match[1].trim() : "";
 }
 
+// 取出 contents 后面的相对路径（全路径形如 repos/<owner>/<repo>/contents/xxx）喵
+function contentsRelative(path) {
+	const marker = `/contents/`;
+	const lower = path.toLowerCase();
+	const idx = lower.indexOf(marker);
+	if (idx === -1) return null;
+	return path.slice(idx + marker.length).split("?")[0];
+}
+
 async function callGitHub(path, request, env, timeoutMs = TIMEOUT_MS) {
 	const url = new URL(`https://api.github.com/${path}`);
 	const incoming = new URL(request.url);
@@ -146,7 +155,8 @@ export async function onRequest({ request, env, params }) {
 	const isGet = method === "GET";
 	const incoming = new URL(request.url);
 	// 只给「读文章/读目录」这类 GET 加边缘缓存，其余（commits、trees 等）保持实时喵
-	const cacheable = isGet && /^contents\//i.test(path);
+	const relative = contentsRelative(path);
+	const cacheable = isGet && relative !== null;
 	const cacheKey = cacheable
 		? new Request(`https://gw-cache.internal/${path}${incoming.search}`, { method: "GET" })
 		: null;
@@ -210,19 +220,14 @@ export async function onRequest({ request, env, params }) {
 	}
 
 	// 写完之后把对应文件的缓存清掉，避免刚保存完又读到旧内容喵
-	if (!isGet && response.status < 300 && typeof caches !== "undefined") {
-		const targets = [];
-		const fileMatch = /^contents\/(.+?)(?:\?|$)/i.exec(path);
-		if (fileMatch) {
-			const file = fileMatch[1].replace(/\/+$/, "");
-			targets.push(file);
-			const parent = file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "";
-			if (parent) targets.push(parent);
-		}
-		const variants = ["", "?ref=main"];
+	if (!isGet && response.status < 300 && typeof caches !== "undefined" && relative) {
+		const file = relative.replace(/\/+$/, "");
+		const targets = [file];
+		const parent = file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "";
+		if (parent) targets.push(parent);
 		for (const t of targets) {
-			for (const v of variants) {
-				caches.default.delete(new Request(`https://gw-cache.internal/contents/${t}${v}`)).catch(() => {});
+			for (const v of ["", "?ref=main"]) {
+				caches.default.delete(new Request(`https://gw-cache.internal/repos/${OWNER}/${REPO}/contents/${t}${v}`)).catch(() => {});
 			}
 		}
 	}
