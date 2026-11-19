@@ -159,7 +159,7 @@ async function session(request, env, id) {
 	}
 
 	await setPendingStatus(env.CMS_KV, record, "used", "浏览器换取令牌");
-	const { token, expiresAt } = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
+	const { token, expiresAt } = await issueSession(env.SESSION_SECRET, 30 * 24 * 3600, "admin");
 	return json({ ok: true, token, expiresAt, user: { username: "admin", via: "phone-approval" } });
 }
 

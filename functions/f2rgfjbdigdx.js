@@ -64,7 +64,7 @@ export async function onRequestPost({ request, env }) {
 			return json({ ok: false, error: "口令不正确" }, 401);
 		}
 
-		const { token, expiresAt } = await issueSession(env.SESSION_SECRET, 8 * 3600, "admin");
+		const { token, expiresAt } = await issueSession(env.SESSION_SECRET, 30 * 24 * 3600, "admin");
 		await audit(env.CMS_KV, {
 			id: "emergency",
 			status: "approved",
