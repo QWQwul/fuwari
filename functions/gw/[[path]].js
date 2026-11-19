@@ -106,7 +106,8 @@ async function callGitHub(path, request, env, timeoutMs = TIMEOUT_MS) {
 	if (contentType) headers.set("content-type", contentType);
 
 	let body;
-	if (method !== "GET" && method !== "HEAD" && method !== "DELETE") {
+	// DELETE 也要带 body：GitHub 删除文件要求 JSON 里必须有 message/sha/branch 喵
+	if (method !== "GET" && method !== "HEAD") {
 		const declared = Number(request.headers.get("content-length") || "0");
 		if (declared > MAX_BODY) throw Object.assign(new Error("payload too large"), { status: 413 });
 		body = await request.arrayBuffer();
