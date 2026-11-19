@@ -48,9 +48,40 @@ if (isLocal) {
 
 const imageClass = "w-full h-full object-cover";
 const imageStyle = `object-position: ${position}`;
+
+// public/uploads 下的图走 scripts/optimize-images.mjs 预生成的 WebP 变体，
+// 原图动辄 600KB，卡片里只要几十 KB 就够，手机流量下差别很大喵
+const UPLOAD_WIDTHS = [480, 800, 1200];
+// 只把文件名索引进构建产物（不打包文件内容），用来判断变体是否已生成
+const optFiles = import.meta.glob("/public/uploads/opt/*.webp", {
+	eager: true,
+	query: "?url",
+	import: "default",
+}) as Record<string, string>;
+
+let optSrc = "";
+let optSrcset = "";
+if (isPublic && src.startsWith("/uploads/")) {
+	const base = src.slice("/uploads/".length).replace(/\.[^.]+$/, "");
+	const found: string[] = [];
+	for (const w of UPLOAD_WIDTHS) {
+		const key = `/public/uploads/opt/${base}-${w}.webp`;
+		if (optFiles[key]) found.push(`/uploads/opt/${base}-${w}.webp ${w}w`);
+	}
+	if (found.length) {
+		optSrcset = found.join(", ");
+		optSrc =
+			found.length > 1
+				? `/uploads/opt/${base}-800.webp`
+				: `/uploads/opt/${base}-${UPLOAD_WIDTHS[0]}.webp`;
+	}
+}
 ---
 <div id={id} class:list={[className, 'overflow-hidden relative']}>
     <div class="transition absolute inset-0 dark:bg-black/10 bg-opacity-50 pointer-events-none"></div>
     {isLocal && img && <Image src={img} alt={alt || ""} class={imageClass} style={imageStyle}/>}
-    {!isLocal && <img src={isPublic ? url(src) : src} alt={alt || ""} class={imageClass} style={imageStyle}/>}
+    {!isLocal && optSrc && (
+        <img src={optSrc} srcset={optSrcset} sizes="(max-width: 768px) 100vw, 720px" alt={alt || ""} class={imageClass} style={imageStyle} loading="lazy" decoding="async" />
+    )}
+    {!isLocal && !optSrc && <img src={isPublic ? url(src) : src} alt={alt || ""} class={imageClass} style={imageStyle}/>}
 </div>
