@@ -227,18 +227,20 @@ export async function onRequest({ request, env, params }) {
 		}
 	}
 
-	const out = new Response(response.body, { status: response.status, headers });
+	// 先读成 buffer，缓存和响应各用一份（body 流只能消费一次喵）
+	const payload = await response.arrayBuffer();
 	if (cacheKey && cacheable && response.status === 200 && typeof caches !== "undefined") {
-		const toCache = out.clone();
-		const cacheHeaders = new Headers(toCache.headers);
-		cacheHeaders.set("cache-control", `public, max-age=${GET_CACHE_TTL}`);
-		// Cloudflare 的 Cache API 不接受带 Vary / Set-Cookie 的响应，先去掉喵
+		const cacheHeaders = new Headers(headers);
 		cacheHeaders.delete("vary");
 		cacheHeaders.delete("set-cookie");
-		await caches.default
-			.put(cacheKey, new Response(toCache.body, { status: toCache.status, headers: cacheHeaders }))
-			.then(() => headers.set("x-gw-cache", "stored"))
-			.catch((e) => headers.set("x-gw-cache", "store-failed: " + String(e?.message || e).slice(0, 80)));
+		cacheHeaders.set("cache-control", `public, max-age=${GET_CACHE_TTL}`);
+		try {
+			await caches.default.put(cacheKey, new Response(payload, { status: 200, headers: cacheHeaders }));
+			headers.set("x-gw-cache", "stored");
+		} catch (e) {
+			headers.set("x-gw-cache", "store-failed: " + String(e?.message || e).slice(0, 60));
+		}
 	}
-	return out;
+
+	return new Response(payload, { status: response.status, headers });
 }
