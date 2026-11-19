@@ -19,6 +19,15 @@ import { defaultFavicons } from "../constants/icon";
 import type { Favicon } from "../types/config";
 import { pathsEqual, url } from "../utils/url-utils";
 import "katex/dist/katex.css";
+// 样式以前是靠 ImageWrapper 里的 import.meta.glob("../../**") 顺带打包进来的，
+// 收窄 glob 后必须在这里显式引入，否则 .card-base / .link 这些类会消失喵
+import "../styles/main.css";
+import "../styles/markdown.css";
+import "../styles/markdown-extend.styl";
+import "../styles/transition.css";
+import "../styles/scrollbar.css";
+import "../styles/expressive-code.css";
+import "../styles/photoswipe.css";
 
 interface Props {
 	title?: string;

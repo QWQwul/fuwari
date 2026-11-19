@@ -49,11 +49,34 @@ export default defineConfig({
 			globalInstance: true,
 		}),
 		icon({
+			// 只保留项目里真正用到的图标：以前是 ["*"] 全量打包四个图标集（上万条 SVG），
+			// 构建时白等好几十秒喵
 			include: {
-				"preprocess: vitePreprocess(),": ["*"],
-				"fa6-brands": ["*"],
-				"fa6-regular": ["*"],
-				"fa6-solid": ["*"],
+				"fa6-brands": ["creative-commons", "github", "steam", "twitter"],
+				"fa6-regular": ["address-card"],
+				"fa6-solid": ["arrow-rotate-left", "arrow-up-right-from-square", "chevron-right"],
+				"material-symbols": [
+					"book-2-outline-rounded",
+					"calendar-today-outline-rounded",
+					"chevron-left-rounded",
+					"chevron-right-rounded",
+					"copyright-outline-rounded",
+					"dark-mode-outline-rounded",
+					"edit-calendar-outline-rounded",
+					"home-outline-rounded",
+					"keyboard-arrow-up-rounded",
+					"menu-rounded",
+					"more-horiz",
+					"notes-rounded",
+					"palette-outline",
+					"radio-button-partial-outline",
+					"rss-feed-rounded",
+					"schedule-outline-rounded",
+					"search",
+					"search-rounded",
+					"tag-rounded",
+					"wb-sunny-outline-rounded",
+				],
 			},
 		}),
 		expressiveCode({
