@@ -232,6 +232,9 @@ export async function onRequest({ request, env, params }) {
 		const toCache = out.clone();
 		const cacheHeaders = new Headers(toCache.headers);
 		cacheHeaders.set("cache-control", `public, max-age=${GET_CACHE_TTL}`);
+		// Cloudflare 的 Cache API 不接受带 Vary / Set-Cookie 的响应，先去掉喵
+		cacheHeaders.delete("vary");
+		cacheHeaders.delete("set-cookie");
 		caches.default.put(cacheKey, new Response(toCache.body, { status: toCache.status, headers: cacheHeaders })).catch(() => {});
 	}
 	return out;
