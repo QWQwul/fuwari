@@ -153,7 +153,7 @@ export async function onRequest({ request, env, params }) {
 
 	let response;
 	if (cacheKey && typeof caches !== "undefined") {
-		const hit = await caches.default.match(cacheKey).catch(() => null);
+		const hit = await caches.default.match(cacheKey).catch((e) => { console.error("cache match fail", e); return null; });
 		if (hit) {
 			const cachedHeaders = new Headers(hit.headers);
 			for (const [k, v] of Object.entries(CORS)) cachedHeaders.set(k, v);
@@ -235,7 +235,10 @@ export async function onRequest({ request, env, params }) {
 		// Cloudflare 的 Cache API 不接受带 Vary / Set-Cookie 的响应，先去掉喵
 		cacheHeaders.delete("vary");
 		cacheHeaders.delete("set-cookie");
-		caches.default.put(cacheKey, new Response(toCache.body, { status: toCache.status, headers: cacheHeaders })).catch(() => {});
+		await caches.default
+			.put(cacheKey, new Response(toCache.body, { status: toCache.status, headers: cacheHeaders }))
+			.then(() => headers.set("x-gw-cache", "stored"))
+			.catch((e) => headers.set("x-gw-cache", "store-failed: " + String(e?.message || e).slice(0, 80)));
 	}
 	return out;
 }
