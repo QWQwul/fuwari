@@ -23,6 +23,11 @@ show_preview_links: false
 media_folder: public/uploads
 public_folder: /uploads
 
+# 可选字段留空时直接不写进 frontmatter，
+# 避免出现 `updated: ''` 这种让 Astro 构建失败的空值喵
+output:
+  omit_empty_optional_fields: true
+
 collections:
   - name: posts
     label: 文章
@@ -32,12 +37,17 @@ collections:
     delete: true
     slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
     identifier_field: title
-    # 允许读取子目录里的文章（比如 guide/index.md），但不在界面上显示文件夹喵
+    # 允许读取子目录里的文章（比如 guide/index.md 这种目录型文章）喵
     nested:
       depth: 2
-      subfolders: false
+      subfolders: true
     summary: "{{title}} · {{published}}"
-    sortable_fields: [published, title]
+    # 默认按「置顶」倒序：true 在前，置顶文章永远排在列表最上面喵
+    sortable_fields:
+      fields: [pinned, published, title]
+      default:
+        field: pinned
+        direction: descending
     fields:
       - label: 标题
         name: title
