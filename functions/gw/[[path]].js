@@ -159,9 +159,10 @@ export async function onRequest({ request, env, params }) {
 	// 读文章内容 + 读文件树都缓存：后台每次打开都要重新拉一遍，手机网络下不缓存就是几十秒喵
 	const isTree = /^repos\/[^/]+\/[^/]+\/git\/trees\//i.test(path);
 	const cacheable = isGet && (relative !== null || isTree);
-	const cacheKey = cacheable
-		? new Request(`https://gw-cache.internal/${path}${incoming.search}`, { method: "GET" })
-		: null;
+	// 把 Accept 也算进缓存键：同一条路径可能被要求返回 JSON 或 raw，不能混用喵
+	const acceptTag = (request.headers.get("accept") || "").includes("raw") ? "raw" : "json";
+	const cacheUrl = `https://gw-cache.internal/${acceptTag}/${path}${incoming.search}`;
+	const cacheKey = cacheable ? new Request(cacheUrl, { method: "GET" }) : null;
 
 	let response;
 	if (cacheKey && typeof caches !== "undefined") {
@@ -229,13 +230,19 @@ export async function onRequest({ request, env, params }) {
 		if (parent) targets.push(parent);
 		for (const t of targets) {
 			for (const v of ["", "?ref=main"]) {
-				caches.default.delete(new Request(`https://gw-cache.internal/repos/${OWNER}/${REPO}/contents/${t}${v}`)).catch(() => {});
+				for (const tag of ["json", "raw"]) {
+					caches.default
+						.delete(new Request(`https://gw-cache.internal/${tag}/repos/${OWNER}/${REPO}/contents/${t}${v}`))
+						.catch(() => {});
+				}
 			}
 		}
 		// 文件树也一起失效，否则保存后列表还是旧的喵
-		caches.default
-			.delete(new Request(`https://gw-cache.internal/repos/${OWNER}/${REPO}/git/trees/main?recursive=1`))
-			.catch(() => {});
+		for (const tag of ["json", "raw"]) {
+			caches.default
+				.delete(new Request(`https://gw-cache.internal/${tag}/repos/${OWNER}/${REPO}/git/trees/main?recursive=1`))
+				.catch(() => {});
+		}
 	}
 
 	// 先读成 buffer，缓存和响应各用一份（body 流只能消费一次喵）
