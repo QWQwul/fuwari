@@ -14,6 +14,10 @@ const MAX_BODY = 12 * 1024 * 1024;
 // GitHub 偶尔会慢到 40 秒以上（实测有过 44.5s 的一次上传），
 // 20 秒会直接把后台保存打断成「一直转圈」，放宽到 60 秒喵。
 const TIMEOUT_MS = 60000;
+// GET 请求（读文章列表/内容）走短超时 + 边缘缓存：手机流量下经常单个请求就抖到几十秒，
+// 卡住不如快速失败后重试一次，读接口再命中缓存就基本不用等喵。
+const GET_TIMEOUT_MS = 20000;
+const GET_CACHE_TTL = 45;
 
 // 运营商会对「Cloudflare 边缘 + 443」做 TLS 重置，手机端改用 8443 端口访问，
 // 所以 CORS 不能写死带端口的完整 origin，只按主机名放行、并回显实际 Origin 喵。
@@ -77,7 +81,7 @@ function readSession(request) {
 	return match ? match[1].trim() : "";
 }
 
-async function callGitHub(path, request, env) {
+async function callGitHub(path, request, env, timeoutMs = TIMEOUT_MS) {
 	const url = new URL(`https://api.github.com/${path}`);
 	const incoming = new URL(request.url);
 	incoming.searchParams.forEach((value, key) => url.searchParams.append(key, value));
@@ -104,7 +108,7 @@ async function callGitHub(path, request, env) {
 		method,
 		headers,
 		body,
-		signal: AbortSignal.timeout(TIMEOUT_MS),
+		signal: AbortSignal.timeout(timeoutMs),
 	});
 }
 
@@ -139,17 +143,45 @@ export async function onRequest({ request, env, params }) {
 		return json({ message: "方法不允许" }, 405, {}, CORS);
 	}
 
+	const isGet = method === "GET";
+	const incoming = new URL(request.url);
+	// 只给「读文章/读目录」这类 GET 加边缘缓存，其余（commits、trees 等）保持实时喵
+	const cacheable = isGet && /^contents\//i.test(path);
+	const cacheKey = cacheable
+		? new Request(`https://gw-cache.internal/${path}${incoming.search}`, { method: "GET" })
+		: null;
+
 	let response;
+	if (cacheKey && typeof caches !== "undefined") {
+		const hit = await caches.default.match(cacheKey).catch(() => null);
+		if (hit) {
+			const cachedHeaders = new Headers(hit.headers);
+			for (const [k, v] of Object.entries(CORS)) cachedHeaders.set(k, v);
+			cachedHeaders.set("x-gw-cache", "hit");
+			return new Response(hit.body, { status: hit.status, headers: cachedHeaders });
+		}
+	}
+
 	try {
-		response = await callGitHub(path, request, env);
-		if (method === "GET" && response.status >= 500) {
+		response = await callGitHub(path, request, env, isGet ? GET_TIMEOUT_MS : TIMEOUT_MS);
+		if (isGet && response.status >= 500) {
 			await new Promise((r) => setTimeout(r, 350));
-			response = await callGitHub(path, request, env);
+			response = await callGitHub(path, request, env, GET_TIMEOUT_MS);
 		}
 	} catch (error) {
-		const status = error?.status === 413 ? 413 : 502;
-		const message = status === 413 ? "上传内容过大" : "无法连接 GitHub API，请稍后重试";
-		return json({ message }, status, {}, CORS);
+		// 读请求网络抖动时再试一次，写请求不能重试（可能已经提交成功）喵
+		if (isGet) {
+			try {
+				response = await callGitHub(path, request, env, GET_TIMEOUT_MS);
+			} catch {
+				response = null;
+			}
+		}
+		if (!response) {
+			const status = error?.status === 413 ? 413 : 502;
+			const message = status === 413 ? "上传内容过大" : "无法连接 GitHub API，请稍后重试";
+			return json({ message }, status, {}, CORS);
+		}
 	}
 
 	const headers = new Headers();
@@ -158,7 +190,7 @@ export async function onRequest({ request, env, params }) {
 		const value = response.headers.get(name);
 		if (value) headers.set(name, value);
 	}
-	headers.set("cache-control", "no-store");
+	headers.set("cache-control", isGet ? `public, max-age=${GET_CACHE_TTL}` : "no-store");
 	for (const [k, v] of Object.entries(CORS)) headers.set(k, v);
 
 	if (response.status === 401 || response.status === 403) {
@@ -177,5 +209,30 @@ export async function onRequest({ request, env, params }) {
 		);
 	}
 
-	return new Response(response.body, { status: response.status, headers });
+	// 写完之后把对应文件的缓存清掉，避免刚保存完又读到旧内容喵
+	if (!isGet && response.status < 300 && typeof caches !== "undefined") {
+		const targets = [];
+		const fileMatch = /^contents\/(.+?)(?:\?|$)/i.exec(path);
+		if (fileMatch) {
+			const file = fileMatch[1].replace(/\/+$/, "");
+			targets.push(file);
+			const parent = file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : "";
+			if (parent) targets.push(parent);
+		}
+		const variants = ["", "?ref=main"];
+		for (const t of targets) {
+			for (const v of variants) {
+				caches.default.delete(new Request(`https://gw-cache.internal/contents/${t}${v}`)).catch(() => {});
+			}
+		}
+	}
+
+	const out = new Response(response.body, { status: response.status, headers });
+	if (cacheKey && cacheable && response.status === 200 && typeof caches !== "undefined") {
+		const toCache = out.clone();
+		const cacheHeaders = new Headers(toCache.headers);
+		cacheHeaders.set("cache-control", `public, max-age=${GET_CACHE_TTL}`);
+		caches.default.put(cacheKey, new Response(toCache.body, { status: toCache.status, headers: cacheHeaders })).catch(() => {});
+	}
+	return out;
 }
