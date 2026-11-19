@@ -16,8 +16,8 @@ const MAX_BODY = 12 * 1024 * 1024;
 const TIMEOUT_MS = 60000;
 // GET 请求（读文章列表/内容）走短超时 + 边缘缓存：手机流量下经常单个请求就抖到几十秒，
 // 卡住不如快速失败后重试一次，读接口再命中缓存就基本不用等喵。
-const GET_TIMEOUT_MS = 20000;
-const GET_CACHE_TTL = 45;
+const GET_TIMEOUT_MS = 30000;
+const GET_CACHE_TTL = 300;
 
 // 运营商会对「Cloudflare 边缘 + 443」做 TLS 重置，手机端改用 8443 端口访问，
 // 所以 CORS 不能写死带端口的完整 origin，只按主机名放行、并回显实际 Origin 喵。
@@ -156,7 +156,9 @@ export async function onRequest({ request, env, params }) {
 	const incoming = new URL(request.url);
 	// 只给「读文章/读目录」这类 GET 加边缘缓存，其余（commits、trees 等）保持实时喵
 	const relative = contentsRelative(path);
-	const cacheable = isGet && relative !== null;
+	// 读文章内容 + 读文件树都缓存：后台每次打开都要重新拉一遍，手机网络下不缓存就是几十秒喵
+	const isTree = /^repos\/[^/]+\/[^/]+\/git\/trees\//i.test(path);
+	const cacheable = isGet && (relative !== null || isTree);
 	const cacheKey = cacheable
 		? new Request(`https://gw-cache.internal/${path}${incoming.search}`, { method: "GET" })
 		: null;
@@ -230,6 +232,10 @@ export async function onRequest({ request, env, params }) {
 				caches.default.delete(new Request(`https://gw-cache.internal/repos/${OWNER}/${REPO}/contents/${t}${v}`)).catch(() => {});
 			}
 		}
+		// 文件树也一起失效，否则保存后列表还是旧的喵
+		caches.default
+			.delete(new Request(`https://gw-cache.internal/repos/${OWNER}/${REPO}/git/trees/main?recursive=1`))
+			.catch(() => {});
 	}
 
 	// 先读成 buffer，缓存和响应各用一份（body 流只能消费一次喵）
