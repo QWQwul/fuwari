@@ -158,7 +158,9 @@ export async function onRequest({ request, env, params }) {
 	const relative = contentsRelative(path);
 	// 读文章内容 + 读文件树都缓存：后台每次打开都要重新拉一遍，手机网络下不缓存就是几十秒喵
 	const isTree = /^repos\/[^/]+\/[^/]+\/git\/trees\//i.test(path);
-	const cacheable = isGet && (relative !== null || isTree);
+	// blob 是按 sha 寻址的，内容永不变，缓存最划算喵
+	const isBlob = /^repos\/[^/]+\/[^/]+\/git\/blobs\//i.test(path);
+	const cacheable = isGet && (relative !== null || isTree || isBlob);
 	// 把 Accept 也算进缓存键：同一条路径可能被要求返回 JSON 或 raw，不能混用喵
 	const acceptTag = (request.headers.get("accept") || "").includes("raw") ? "raw" : "json";
 	const cacheUrl = `https://gw-cache.internal/${acceptTag}/${path}${incoming.search}`;
