@@ -71,8 +71,20 @@ export default function rehypeVideoProxy(options = {}) {
 		return tag.replace(/\bsrc\s*=\s*(["']).*?\1/i, `src="${base}/embed/${id}"`);
 	};
 
+	// 自己托管的视频（video.qwqads.dpdns.org 上的 mp4/webm）不需要改写，
+	// 但要把 controls / preload / playsinline 补齐，否则手机上点了没反应喵
+	const enhanceVideo = (props) => {
+		if (props.controls === undefined) props.controls = true;
+		if (!props.preload) props.preload = "metadata";
+		if (props.playsinline === undefined) props.playsInline = true;
+		props.style = "width:100%;border-radius:12px;background:#000";
+	};
+
 	const walk = (node) => {
 		if (!node || typeof node !== "object") return;
+		if (node.type === "element" && node.tagName === "video") {
+			enhanceVideo(node.properties || (node.properties = {}));
+		}
 		if (node.type === "element" && node.tagName === "iframe") {
 			const props = node.properties || {};
 			const src = typeof props.src === "string" ? props.src : "";
