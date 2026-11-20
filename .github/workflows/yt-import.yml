@@ -113,8 +113,12 @@ jobs:
             echo "::error::缺少仓库 Secret VIDEO_UPLOAD_TOKEN（视频托管的 UPLOAD_TOKEN）"
             exit 1
           fi
+          # 文件名可能是中文：必须 percent-encode 再拼进 URL，
+          # 直接塞原始 UTF-8 字节会让 Cloudflare 边缘直接回 400
+          qname=$(python -c "import os,urllib.parse;print(urllib.parse.quote(os.environ['OUT']+'.mp4'))")
+          echo "上传名（已编码）: $qname"
           code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
-            -X POST "https://video.qwqads.dpdns.org/upload?name=${OUT}.mp4" \
+            -X POST "https://video.qwqads.dpdns.org/upload?name=${qname}" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "content-type: video/mp4" \
             --data-binary "@/tmp/${OUT}.mp4")
