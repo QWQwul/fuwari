@@ -1,0 +1,23 @@
+---
+import MainGridLayout from "@layouts/MainGridLayout.astro";
+---
+
+<MainGridLayout title="页面不存在" description="这里什么都没有喵">
+    <div class="flex w-full rounded-[var(--radius-large)] overflow-hidden relative min-h-32">
+        <div class="card-base z-10 px-6 py-10 relative w-full text-center">
+            <div class="text-[4rem] leading-none font-bold opacity-20 select-none">404</div>
+            <h1 class="mt-4 text-2xl font-bold">这个页面不见了喵</h1>
+            <p class="mt-3 text-sm opacity-70">
+                链接可能拼错了，或者文章已经被删掉、改名了喵。
+            </p>
+            <div class="mt-8 flex flex-wrap gap-3 justify-center">
+                <a href="/" class="btn-regular bg-[var(--primary)] text-white px-5 py-2 rounded-lg transition hover:opacity-90">
+                    回首页
+                </a>
+                <a href="/archive/" class="btn-regular bg-[var(--btn-regular-bg)] px-5 py-2 rounded-lg transition hover:bg-[var(--btn-regular-bg-hover)]">
+                    看归档
+                </a>
+            </div>
+        </div>
+    </div>
+</MainGridLayout>

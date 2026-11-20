@@ -483,12 +483,38 @@ function showBanner() {
 	banner.classList.remove('opacity-0', 'scale-105');
 }
 
+/**
+ * 兜底：正文不可见的两种成因都可能让页面「点开是空白」
+ *   1. `.onload-animation { opacity: 0 }` 的淡入动画没跑完 / 被系统禁用
+ *   2. swup 切换页面中途出错，`<html>` 上残留 `is-animating`，
+ *      `.transition-swup-fade { opacity: 0 }` 让主容器永久透明
+ * 这里在 3 秒后检查一次，发现仍是透明就强制放行喵
+ */
+function revealFallback() {
+	setTimeout(() => {
+		const html = document.documentElement;
+		const wrapper = document.getElementById("content-wrapper");
+		const main = document.getElementById("swup-container");
+		const invisible =
+			(window.getComputedStyle(wrapper ?? document.body).opacity === "0" ||
+				window.getComputedStyle(main ?? document.body).opacity === "0") &&
+			!(wrapper as HTMLElement | null)?.getAnimations?.().some((a) => a.playState === "running");
+		if (!invisible) return;
+		html.classList.remove("is-animating", "is-changing");
+		document.querySelectorAll<HTMLElement>(".onload-animation, .transition-swup-fade").forEach((el) => {
+			el.style.opacity = "1";
+			el.style.animation = "none";
+		});
+	}, 3000);
+}
+
 function init() {
 	// disableAnimation()()		// TODO
 	loadTheme();
 	loadHue();
 	initCustomScrollbar();
 	showBanner();
+	revealFallback();
 }
 
 /* Load settings when entering the site */

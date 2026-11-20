@@ -24,6 +24,18 @@ html.is-animating .transition-swup-fade {
     animation: 300ms fade-in-up;
     animation-fill-mode: forwards;
 }
+/* 系统开了「减弱动画 / 移除动画」时浏览器会禁用 animation，
+   但上面的 opacity: 0 仍然生效，正文就永久不可见（表现为整页空白）。
+   这里直接放行，保证内容一定可见喵 */
+@media (prefers-reduced-motion: reduce) {
+    .onload-animation {
+        opacity: 1;
+        animation: none;
+    }
+    html.is-animating .transition-swup-fade {
+        opacity: 1;
+    }
+}
 #navbar {
     animation-delay: 0ms
 }
