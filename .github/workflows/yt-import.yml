@@ -42,11 +42,15 @@ jobs:
           yt-dlp --version
 
       - name: Install ffmpeg
-        # 分轨视频（1080p 以上都是音视频分离）需要 ffmpeg 合并，runner 上默认没有
+        # 分轨视频（1080p 以上都是音视频分离）需要 ffmpeg 合并，runner 上默认没有。
+        # 不直接用 apt：apt-get update 偶发卡死（会一直挂着把整个任务拖到超时），
+        # 改用 imageio-ffmpeg 附带的静态二进制，纯 pip 下载，快且不会卡。
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-          ffmpeg -version | head -1
+          python -m pip install --upgrade imageio-ffmpeg
+          FF=$(python -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")
+          echo "ffmpeg 路径: $FF"
+          echo "FFMPEG_BIN=$FF" >> "$GITHUB_ENV"
+          "$FF" -version | head -1
 
       - name: Download video
         id: dl
@@ -77,6 +81,11 @@ jobs:
 
           # 实测：默认客户端（visionos/web_safari 轮换）能拿到流；android_vr 反而 403。
           # 所以先用默认，失败再试 android_vr，最后试一次不分画质上限的。
+          # yt-dlp 找的是 PATH 里的 ffmpeg，这里临时指给 pip 装的那个静态二进制。
+          mkdir -p /tmp/ffbin
+          ln -sf "${FFMPEG_BIN}" /tmp/ffbin/ffmpeg
+          export PATH="/tmp/ffbin:$PATH"
+          ffmpeg -version | head -1
           fmt="bv*[height<=${QUALITY}][ext=mp4]+ba[ext=m4a]/b[height<=${QUALITY}][ext=mp4]/b[height<=${QUALITY}]/b"
           ok=0
           yt-dlp -f "$fmt" --merge-output-format mp4 --no-playlist \
