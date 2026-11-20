@@ -508,6 +508,59 @@ function revealFallback() {
 	}, 3000);
 }
 
+/**
+ * 运行时兜底：把文章里没被构建期插件改写到的国外视频 iframe（youtube / vimeo）
+ * 换成自建中转站地址。构建期 rehype-video-proxy 已经处理过绝大部分情况，
+ * 这里负责补漏：swup 切换页面后的新内容、后台直传的原始 HTML、以后新增的写法喵。
+ */
+const VIDEO_PROXY = "https://yt.qwqads.dpdns.org";
+const YT_HOSTS = new Set([
+	"www.youtube.com",
+	"youtube.com",
+	"m.youtube.com",
+	"www.youtube-nocookie.com",
+	"youtube-nocookie.com",
+	"youtu.be",
+]);
+const VIMEO_HOSTS = new Set(["player.vimeo.com", "vimeo.com", "www.vimeo.com"]);
+const SAFE_VIDEO_ID = /^[A-Za-z0-9_-]{3,40}$/;
+
+function videoIdFromSrc(raw: string): string | null {
+	let url: URL;
+	try {
+		url = new URL(raw, location.href);
+	} catch {
+		return null;
+	}
+	const host = url.hostname.toLowerCase();
+	const parts = url.pathname.split("/").filter(Boolean);
+	if (YT_HOSTS.has(host)) {
+		if (parts[0] === "embed" || parts[0] === "v" || parts[0] === "shorts") return parts[1] ?? null;
+		if (parts[0] === "watch") return url.searchParams.get("v");
+		if (host === "youtu.be") return parts[0] ?? null;
+		return null;
+	}
+	if (VIMEO_HOSTS.has(host) && parts[0] === "video") return parts[1] ?? null;
+	return null;
+}
+
+function proxyEmbeds() {
+	document.querySelectorAll<HTMLIFrameElement>("iframe[src]").forEach((el) => {
+		const src = el.getAttribute("src") || "";
+		if (src.startsWith(VIDEO_PROXY)) return;
+		const id = videoIdFromSrc(src);
+		if (!id || !SAFE_VIDEO_ID.test(id)) return;
+		el.setAttribute("src", `${VIDEO_PROXY}/embed/${id}`);
+		if (!el.getAttribute("allow")) {
+			el.setAttribute("allow", "autoplay; fullscreen; picture-in-picture; encrypted-media");
+		}
+		el.setAttribute("allowfullscreen", "true");
+		el.setAttribute("loading", "lazy");
+		// 记录原始地址，方便「去原站看」的提示
+		el.dataset.originalSrc = src;
+	});
+}
+
 function init() {
 	// disableAnimation()()		// TODO
 	loadTheme();
@@ -515,7 +568,18 @@ function init() {
 	initCustomScrollbar();
 	showBanner();
 	revealFallback();
+	proxyEmbeds();
 }
+
+// swup 每次切换页面后补一次（新正文里的 iframe 是运行时才插进 DOM 的）
+function hookVideoProxySwup() {
+	window.swup?.hooks?.on("page:view", () => setTimeout(proxyEmbeds, 80));
+}
+document.addEventListener("DOMContentLoaded", () => {
+	proxyEmbeds();
+	if (window.swup?.hooks) hookVideoProxySwup();
+	else document.addEventListener("swup:enable", hookVideoProxySwup, { once: true });
+});
 
 /* Load settings when entering the site */
 init();
