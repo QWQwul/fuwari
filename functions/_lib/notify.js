@@ -1,7 +1,7 @@
 /**
  * ntfy 推送：把「登录待批准」通知发到管理员手机。
  *
- * 默认用自建的 fuwari-push（ntfy 兼容，ntfy.157478.xyz）：
+ * 默认用自建的 fuwari-push（ntfy 兼容，ntfy.qwqads.dpdns.org）：
  *   NTFY_BASE  —— 服务地址
  *   NTFY_TOPIC —— 主题名（即密钥）
  *   NTFY_TOKEN —— 发布令牌，服务端校验 Authorization: Bearer
