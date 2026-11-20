@@ -41,6 +41,13 @@ jobs:
           pip install --upgrade yt-dlp
           yt-dlp --version
 
+      - name: Install ffmpeg
+        # 分轨视频（1080p 以上都是音视频分离）需要 ffmpeg 合并，runner 上默认没有
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+
       - name: Download video
         id: dl
         env:
@@ -68,15 +75,22 @@ jobs:
           echo "out=$out" >> "$GITHUB_OUTPUT"
           echo "视频 id: $vid，保存名: $out"
 
-          # android_vr 客户端在部分网络下更容易拿到流；失败再退回默认
+          # 实测：默认客户端（visionos/web_safari 轮换）能拿到流；android_vr 反而 403。
+          # 所以先用默认，失败再试 android_vr，最后试一次不分画质上限的。
           fmt="bv*[height<=${QUALITY}][ext=mp4]+ba[ext=m4a]/b[height<=${QUALITY}][ext=mp4]/b[height<=${QUALITY}]/b"
-          if ! yt-dlp -f "$fmt" --merge-output-format mp4 \
-               --extractor-args "youtube:player_client=android_vr,web_safari,web" \
-               --no-playlist --no-warnings -o "/tmp/${out}.mp4" "$URL"; then
-            echo "::warning::android_vr 客户端失败，退回默认客户端重试"
-            yt-dlp -f "$fmt" --merge-output-format mp4 \
-               --no-playlist -o "/tmp/${out}.mp4" "$URL"
+          ok=0
+          yt-dlp -f "$fmt" --merge-output-format mp4 --no-playlist \
+            -o "/tmp/${out}.mp4" "$URL" && ok=1 || echo "::warning::默认客户端失败，试 android_vr"
+          if [ "$ok" = "0" ]; then
+            yt-dlp -f "$fmt" --merge-output-format mp4 --no-playlist \
+              --extractor-args "youtube:player_client=android_vr,web_safari,web" \
+              -o "/tmp/${out}.mp4" "$URL" && ok=1 || echo "::warning::android_vr 也失败，去掉画质上限重试"
           fi
+          if [ "$ok" = "0" ]; then
+            yt-dlp -f "b/bv*+ba" --merge-output-format mp4 --no-playlist \
+              -o "/tmp/${out}.mp4" "$URL" && ok=1 || true
+          fi
+          if [ "$ok" = "0" ]; then echo "::error::三种客户端都下载失败"; exit 1; fi
           ls -lh "/tmp/${out}.mp4"
           echo "size=$(stat -c%s "/tmp/${out}.mp4")" >> "$GITHUB_OUTPUT"
 
