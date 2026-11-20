@@ -23,6 +23,7 @@ import { GithubCardComponent } from "./src/plugins/rehype-component-github-card.
 import { parseDirectiveNode } from "./src/plugins/remark-directive-rehype.js";
 import { remarkExcerpt } from "./src/plugins/remark-excerpt.js";
 import { remarkReadingTime } from "./src/plugins/remark-reading-time.mjs";
+import rehypeVideoProxy from "./src/plugins/rehype-video-proxy.mjs";
 import { pluginCustomCopyButton } from "./src/plugins/expressive-code/custom-copy-button.js";
 
 // https://astro.build/config
@@ -139,6 +140,8 @@ export default defineConfig({
 		rehypePlugins: [
 			rehypeKatex,
 			rehypeSlug,
+			// 国外视频（YouTube / Vimeo）的 iframe 换成自建中转站，手机上才播得动喵
+			[rehypeVideoProxy, { site: process.env.VIDEO_PROXY_SITE || "https://yt.qwqads.dpdns.org" }],
 			[
 				rehypeExternalLinks,
 				{
